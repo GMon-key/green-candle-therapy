@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Green Candle Therapy — clinical palette.
+ * Neutrals are biased cool-green (chosen, not defaulted). The one saturated
+ * colour is the therapeutic green; sick red appears only to frame the joke.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --paper: #eef2f0; /* clinic wall */
+  --surface: #ffffff; /* forms, instrument panels */
+  --ink: #0f1a15; /* green-black */
+  --mute: #566860;
+  --line: #d7e0da; /* hairline rules */
+  --heal: #0f9d54;
+  --heal-bright: #12b863;
+  --sick: #d83a3f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #080c0a;
+    --surface: #0e1512;
+    --ink: #e6f1ea;
+    --mute: #7d8e86;
+    --line: #1b2621;
+    --heal: #22c063;
+    --heal-bright: #2ce56b;
+    --sick: #f2555a;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-heal: var(--heal);
+  --color-heal-bright: var(--heal-bright);
+  --color-sick: var(--sick);
+  --font-sans: var(--font-ibm-sans), system-ui, sans-serif;
+  --font-mono: var(--font-ibm-mono), ui-monospace, monospace;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* Instrument readouts (labels, the counter) use the mono face + wide tracking. */
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
