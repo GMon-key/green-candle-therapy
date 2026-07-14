@@ -1,0 +1,26 @@
+# Green Candle Therapy — contract workspace
+# Target: Monad MAINNET (chain 143). See docs.monad.xyz/guides/deploy-smart-contract
+# and .../guides/verify-smart-contract (Foundry + Sourcify).
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+
+# solc/evm: Monad supports opcodes+precompiles through the Osaka fork
+# (docs.monad.xyz/guides/evm-resources/solidity-resources). We pin a
+# conservative fork for deterministic Sourcify verification.
+solc_version = "0.8.28"
+evm_version = "cancun"
+
+# Required for reproducible source verification on Monad (per verify guide):
+# strip the ipfs metadata hash from bytecode and embed literal source content.
+bytecode_hash = "none"
+use_literal_content = true
+
+# Monad Mainnet
+eth-rpc-url = "https://rpc.monad.xyz"
+chain_id = 143
+
+[rpc_endpoints]
+monad = "https://rpc.monad.xyz"
