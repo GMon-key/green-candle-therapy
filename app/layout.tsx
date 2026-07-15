@@ -14,10 +14,30 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+/*
+ * Head / preview copy. Sincere and mechanism-free — no "chart", "green",
+ * "recolor", or "visual" language reaches search results or a social card,
+ * so the reveal is never spoiled before treatment. One source for both the
+ * page description and the OpenGraph / Twitter previews.
+ */
+const SITE_NAME = "Green Candle Therapy";
+const SITE_DESCRIPTION =
+  "Outpatient clinic for market-induced distress. Helping traders recover from prolonged exposure to financial markets.";
+
 export const metadata: Metadata = {
-  title: "Green Candle Therapy",
-  description:
-    "An outpatient clinic for market-induced distress. We can't fix your portfolio. We can fix your chart.",
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
