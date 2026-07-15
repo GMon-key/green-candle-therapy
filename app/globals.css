@@ -300,6 +300,11 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* In-page anchors (e.g. the Begin Assessment CTA -> methodology) glide. */
+  html {
+    scroll-behavior: smooth;
+  }
+
   /* Content arrives. `both` holds the from-state through any stagger delay. */
   .gct-rise {
     opacity: 0;
