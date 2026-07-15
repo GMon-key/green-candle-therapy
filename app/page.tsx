@@ -120,10 +120,8 @@ export default function Home() {
             </ul>
 
             <div className="gct-rise pt-2" style={{ animationDelay: "690ms" }}>
-              {/* Beat 2 (assessment) ships separately — until it lands, the CTA
-                  scrolls to the methodology. Repoint to /assessment then. */}
               <a
-                href="#about"
+                href="/assessment"
                 className="inline-flex rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
               >
                 Begin Assessment
