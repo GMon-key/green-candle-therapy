@@ -117,7 +117,10 @@ export function RecoveryCounter() {
 
       {/* On-chain layer — the one element that carries Monad purple. */}
       <span className="readout flex items-center gap-1.5 text-[0.7rem] uppercase tracking-[0.18em] text-monad">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-monad" aria-hidden />
+        <span
+          className="gct-breathe inline-block h-1.5 w-1.5 rounded-full bg-monad"
+          aria-hidden
+        />
         recorded on-chain · Monad Mainnet
       </span>
     </div>
