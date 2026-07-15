@@ -6,7 +6,7 @@ visual purposes only — *treats* the chart: red candles turn green, wicks
 straighten, the trend rotates upward, and one final absurd god candle breaks the
 frame. You leave with a certificate and a share card. The market is unchanged.
 
-> Visual treatment only. Market unchanged.
+> Visual treatment only.
 
 The whole experience is **free and works with no wallet**. Connecting a wallet is
 optional and only appears at the very end, to record your "recovery" on Monad.
@@ -19,14 +19,14 @@ optional and only appears at the very end, to record your "recovery" on Monad.
   landing page's recovery counter is read **live from a Monad mainnet contract** —
   never a hardcoded number.
 - **The joke:** the "treatment" animation and the wellness metrics (measured in
-  *Cope Coins, CC* — a fictional unit, not a token) are theatre. The treated chart
+  *Cope Units, CU* — a clinical measure, not a token) are theatre. The treated chart
   is always labelled **TREATED VIEW** so it can never be mistaken for real data.
 
 ## The flow (8 beats)
 
 1. **Landing** — the premise, plus the live on-chain recovery counter.
 2. **Assessment** — three quick questions (skippable).
-3. **Diagnosis** — a deadpan verdict + fictional CC metrics.
+3. **Diagnosis** — a deadpan verdict + fictional CU metrics.
 4. **Intake** — search for the asset that hurt you.
 5. **Reality** — the real chart, real data, an honest data-derived diagnosis.
 6. **Treatment** — the money shot: the chart is healed on a `<canvas>`.
