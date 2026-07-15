@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
+import { useCountUp } from "@/lib/useCountUp";
 
 /**
  * The hero number. Reads the live on-chain total from /api/counter.
@@ -21,38 +23,6 @@ async function fetchCounter(signal: AbortSignal): Promise<number> {
     throw new Error("counter unavailable");
   }
   return Number(data.total);
-}
-
-function useCountUp(target: number | null): number {
-  const [value, setValue] = useState(0);
-  const raf = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (target === null) return;
-    const reduce = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (reduce || target === 0) {
-      // Defer to a frame so we never call setState synchronously in an effect.
-      const id = requestAnimationFrame(() => setValue(target));
-      return () => cancelAnimationFrame(id);
-    }
-    const duration = 900;
-    let startTs: number | null = null;
-    const tick = (ts: number) => {
-      if (startTs === null) startTs = ts;
-      const p = Math.min((ts - startTs) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
-      if (p < 1) raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-    };
-  }, [target]);
-
-  return value;
 }
 
 export function RecoveryCounter() {
