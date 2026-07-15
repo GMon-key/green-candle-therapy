@@ -30,6 +30,160 @@
   }
 }
 
+/* ===========================================================================
+ * PER-BEAT THEME TOKENS — one source of truth for the clinic's emotional arc.
+ *
+ * A screen sets `data-theme="<beat>"` on a container; every `--clinic-*` token
+ * below resolves to that beat's mood, and any descendant styled with the
+ * clinic-* utilities (bg-clinic-bg, text-clinic-fg, …) re-moods with no markup
+ * change. Beats that don't exist yet still define their full set here so the
+ * later screens consume them without a retrofit — hooks are ready, not styled.
+ *
+ * The Monad purple set (--monad-*, further down) is a SEPARATE system: the
+ * on-chain layer, never the emotional arc. The two palettes never blur.
+ * =========================================================================== */
+
+:root,
+[data-theme="landing"] {
+  /* Landing — white / clinical, a small green accent. The default mood. */
+  --clinic-bg: var(--paper);
+  --clinic-surface: var(--surface);
+  --clinic-fg: var(--ink);
+  --clinic-muted: var(--mute);
+  --clinic-line: var(--line);
+  --clinic-accent: var(--heal);
+  --clinic-accent-strong: var(--heal-bright);
+  --clinic-alert: var(--sick);
+}
+
+[data-theme="assessment"] {
+  /* Assessment — neutral, calm, no colour opinion. Slate accent. */
+  --clinic-bg: #f1f3f4;
+  --clinic-surface: #ffffff;
+  --clinic-fg: #16201c;
+  --clinic-muted: #5c6a64;
+  --clinic-line: #dce1df;
+  --clinic-accent: #64748b;
+  --clinic-accent-strong: #475569;
+  --clinic-alert: #d83a3f;
+}
+
+[data-theme="denial"] {
+  /* Denial — amber / warning. The most dangerous moment to arrive. */
+  --clinic-bg: #fdf6ec;
+  --clinic-surface: #fffaf2;
+  --clinic-fg: #3a2a12;
+  --clinic-muted: #8a6d45;
+  --clinic-line: #f0e0c4;
+  --clinic-accent: #d98a1f;
+  --clinic-accent-strong: #b8710f;
+  --clinic-alert: #c2410c;
+}
+
+[data-theme="diagnosis"] {
+  /* Diagnosis — red / alarm. The verdict is named. */
+  --clinic-bg: #fdeeee;
+  --clinic-surface: #fff6f5;
+  --clinic-fg: #3a1414;
+  --clinic-muted: #8a5555;
+  --clinic-line: #f3cfcf;
+  --clinic-accent: #d83a3f;
+  --clinic-accent-strong: #b91c1c;
+  --clinic-alert: #b91c1c;
+}
+
+[data-theme="treatment"] {
+  /*
+   * Treatment — dark chrome that transitions red -> orange -> green as the
+   * session progresses. These tokens style the CHROME around the beat-6
+   * canvas; they are deliberately separate from the canvas renderer itself.
+   * The accent tokens below are the mid-transition state; the beat-6 screen
+   * drives the animation between endpoints.
+   */
+  --clinic-bg: #0e1512;
+  --clinic-surface: #131b17;
+  --clinic-fg: #e6f1ea;
+  --clinic-muted: #7d8e86;
+  --clinic-line: #22302a;
+  --clinic-accent: #f97316; /* orange, mid-transition */
+  --clinic-accent-strong: #22c063; /* green, the destination */
+  --clinic-alert: #d83a3f;
+}
+
+[data-theme="recovery"] {
+  /* Recovery — soft, calm green. The pain has resolved. */
+  --clinic-bg: #eef6f0;
+  --clinic-surface: #f6fbf7;
+  --clinic-fg: #14231b;
+  --clinic-muted: #557066;
+  --clinic-line: #d3e7db;
+  --clinic-accent: #3ba776;
+  --clinic-accent-strong: #2f9566;
+  --clinic-alert: #d83a3f;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="assessment"] {
+    --clinic-bg: #0b0f0e;
+    --clinic-surface: #131917;
+    --clinic-fg: #e3eae7;
+    --clinic-muted: #8a978f;
+    --clinic-line: #232b28;
+    --clinic-accent: #94a3b8;
+    --clinic-accent-strong: #cbd5e1;
+    --clinic-alert: #f2555a;
+  }
+
+  [data-theme="denial"] {
+    --clinic-bg: #14100a;
+    --clinic-surface: #1c1610;
+    --clinic-fg: #f4e4c8;
+    --clinic-muted: #b39566;
+    --clinic-line: #2e2416;
+    --clinic-accent: #e5a13a;
+    --clinic-accent-strong: #f0b755;
+    --clinic-alert: #ea6a2c;
+  }
+
+  [data-theme="diagnosis"] {
+    --clinic-bg: #140a0a;
+    --clinic-surface: #1c1010;
+    --clinic-fg: #f4d4d4;
+    --clinic-muted: #b37a7a;
+    --clinic-line: #2e1818;
+    --clinic-accent: #f2555a;
+    --clinic-accent-strong: #f87171;
+    --clinic-alert: #f87171;
+  }
+
+  /* treatment is already dark chrome — its single set serves both schemes. */
+
+  [data-theme="recovery"] {
+    --clinic-bg: #08110c;
+    --clinic-surface: #0e1913;
+    --clinic-fg: #d6ece0;
+    --clinic-muted: #79988a;
+    --clinic-line: #1a2820;
+    --clinic-accent: #3fb582;
+    --clinic-accent-strong: #4fca94;
+    --clinic-alert: #f2555a;
+  }
+}
+
+/* ===========================================================================
+ * MONAD PURPLE — a SEPARATE, reserved token set for the on-chain layer only.
+ * Colour only: no logo, no watermark, no brandmark. RESERVED for chain-native
+ * surfaces (the recovery counter, beat-8 record, the ending). NEVER applied to
+ * the clinic's emotional arc (denial / diagnosis / treatment / recovery).
+ * =========================================================================== */
+
+:root {
+  --monad-purple: #836ef9;
+  --monad-purple-strong: #6e54f0;
+  --monad-purple-soft: #a996ff;
+  --monad-on-purple: #ffffff;
+}
+
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
@@ -39,6 +193,23 @@
   --color-heal: var(--heal);
   --color-heal-bright: var(--heal-bright);
   --color-sick: var(--sick);
+
+  /* Per-beat clinic tokens, consumable as bg-clinic-bg, text-clinic-accent, … */
+  --color-clinic-bg: var(--clinic-bg);
+  --color-clinic-surface: var(--clinic-surface);
+  --color-clinic-fg: var(--clinic-fg);
+  --color-clinic-muted: var(--clinic-muted);
+  --color-clinic-line: var(--clinic-line);
+  --color-clinic-accent: var(--clinic-accent);
+  --color-clinic-accent-strong: var(--clinic-accent-strong);
+  --color-clinic-alert: var(--clinic-alert);
+
+  /* Monad purple — on-chain layer only. */
+  --color-monad: var(--monad-purple);
+  --color-monad-strong: var(--monad-purple-strong);
+  --color-monad-soft: var(--monad-purple-soft);
+  --color-monad-on: var(--monad-on-purple);
+
   --font-sans: var(--font-ibm-sans), system-ui, sans-serif;
   --font-mono: var(--font-ibm-mono), ui-monospace, monospace;
 }
@@ -47,6 +218,24 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+}
+
+/*
+ * When a beat container swaps data-theme, the mood eases between palettes.
+ * Motion-sensitive visitors get the swap with no transition.
+ */
+[data-theme] {
+  transition:
+    background-color 400ms ease,
+    border-color 400ms ease,
+    color 400ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme],
+  [data-theme] * {
+    transition: none !important;
+  }
 }
 
 /* Instrument readouts (labels, the counter) use the mono face + wide tracking. */
