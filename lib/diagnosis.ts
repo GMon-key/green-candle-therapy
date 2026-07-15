@@ -89,6 +89,28 @@ export function deriveMetrics(candles: Candle[]): MarketMetrics {
 
 export type Regime = "coma" | "euphoria" | "drawdown" | "chop";
 
+/**
+ * Canonical numeric diagnosis codes — the SINGLE source of truth for the code
+ * carried on-chain by `recordRecovery`. The order matches {classifyRegime}'s
+ * branches and MUST stay in lockstep with the RecoveryLog contract: values are
+ * 0..3 and the maximum equals the contract's `MAX_DIAGNOSIS_CODE` (3). Renumber
+ * one side without the other and a valid session would revert on-chain.
+ */
+export const DIAGNOSIS_CODE = {
+  coma: 0,
+  euphoria: 1,
+  drawdown: 2,
+  chop: 3,
+} as const satisfies Record<Regime, number>;
+
+/** Highest valid diagnosis code. Mirrors `RecoveryLog.MAX_DIAGNOSIS_CODE`. */
+export const MAX_DIAGNOSIS_CODE = 3;
+
+/** The numeric code for a diagnosed regime, as stored on-chain. */
+export function diagnosisCodeFor(regime: Regime): number {
+  return DIAGNOSIS_CODE[regime];
+}
+
 export interface Diagnosis {
   regime: Regime;
   /** the deadpan condition name shown to the patient */

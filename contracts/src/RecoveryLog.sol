@@ -21,12 +21,16 @@ contract RecoveryLog {
     // -------------------------------------------------------------------------
     // Bounds — exposed as constants so the frontend and the tests read the same
     // source of truth. `diagnosisCode` is an enum index over the four clinical
-    // regimes (coma, euphoria, drawdown, chop). `recoveryLevel` is a discharge
-    // score on a 1..100 scale; 0 is rejected because a recorded recovery always
-    // represents a completed session.
+    // regimes, in this exact order (mirrored by DIAGNOSIS_CODE in
+    // lib/diagnosis.ts — the two MUST stay in lockstep, or a valid session
+    // would revert here):
+    //     0 = coma, 1 = euphoria, 2 = drawdown, 3 = chop
+    // `recoveryLevel` is a discharge score on a 1..100 scale; 0 is rejected
+    // because a recorded recovery always represents a completed session.
     // -------------------------------------------------------------------------
 
-    /// @notice Highest valid diagnosis code (inclusive). Codes are 0..3.
+    /// @notice Highest valid diagnosis code (inclusive). Codes are 0..3, mapping
+    ///         coma=0, euphoria=1, drawdown=2, chop=3.
     uint8 public constant MAX_DIAGNOSIS_CODE = 3;
 
     /// @notice Lowest valid recovery level (inclusive).
@@ -108,7 +112,9 @@ contract RecoveryLog {
     ///         only gas. Reverts on replay or out-of-range input so the ledger
     ///         and the counter can never be corrupted.
     /// @param sessionHash   Opaque session id. Must be non-zero and unrecorded.
-    /// @param assetHash     Opaque asset id (stored as-is).
+    /// @param assetHash     Opaque asset id. Informational only — it is not a
+    ///                      uniqueness key, so it is intentionally not zero- or
+    ///                      range-checked and is stored exactly as provided.
     /// @param diagnosisCode Clinical regime code; must be <= {MAX_DIAGNOSIS_CODE}.
     /// @param recoveryLevel Discharge score; must be within
     ///                      [{MIN_RECOVERY_LEVEL}, {MAX_RECOVERY_LEVEL}].

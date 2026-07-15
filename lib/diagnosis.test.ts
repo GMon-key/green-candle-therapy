@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { type Candle, classifyRegime, deriveMetrics } from "./diagnosis";
+import {
+  type Candle,
+  classifyRegime,
+  deriveMetrics,
+  DIAGNOSIS_CODE,
+  diagnosisCodeFor,
+  MAX_DIAGNOSIS_CODE,
+} from "./diagnosis";
 
 function mk(o: number, h: number, l: number, c: number, t = 0): Candle {
   return { t, o, h, l, c };
@@ -84,5 +91,23 @@ describe("classifyRegime", () => {
       mk(103, 106, 98, 100),
     ]);
     expect(classifyRegime(m).regime).toBe("chop");
+  });
+});
+
+describe("DIAGNOSIS_CODE (must stay in lockstep with RecoveryLog 0..3)", () => {
+  it("maps every regime to a distinct code in [0, MAX_DIAGNOSIS_CODE]", () => {
+    const codes = Object.values(DIAGNOSIS_CODE);
+    expect(codes).toEqual([0, 1, 2, 3]); // order matches classifyRegime branches
+    expect(new Set(codes).size).toBe(codes.length); // no collisions
+    expect(Math.min(...codes)).toBe(0);
+    expect(Math.max(...codes)).toBe(MAX_DIAGNOSIS_CODE);
+    expect(MAX_DIAGNOSIS_CODE).toBe(3); // === contract MAX_DIAGNOSIS_CODE
+  });
+
+  it("returns the on-chain code for a diagnosed regime", () => {
+    expect(diagnosisCodeFor("coma")).toBe(0);
+    expect(diagnosisCodeFor("euphoria")).toBe(1);
+    expect(diagnosisCodeFor("drawdown")).toBe(2);
+    expect(diagnosisCodeFor("chop")).toBe(3);
   });
 });
