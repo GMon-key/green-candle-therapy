@@ -1,24 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { BeatShell } from "@/components/BeatShell";
 import { TypeLine } from "@/components/motion/TypeLine";
-import { type Market, patchFlow } from "@/lib/flow";
+import { getFlow, type Market, patchFlow } from "@/lib/flow";
 
 /**
- * Beat 2 — Assessment. Three questions, one at a time. Every answer leads
- * forward (no dead ends) and is met with a short clinical "reading" so the
- * patient feels diagnosed, not merely recorded. Answers persist to the flow
- * state; Q1 (self-reported market) is carried all the way to beat 5.
+ * Beat 2 — Assessment. Three mandatory questions, one at a time. Every answer
+ * leads forward (no dead ends) and is met with a short clinical "reading" so the
+ * patient feels diagnosed, not merely recorded.
+ *
+ * Answers LOCK on selection: once chosen, the answer is committed and cannot be
+ * changed or revisited within the session. This is deliberate — if answers were
+ * toggleable, a patient could compare paths side by side and discover that every
+ * route ends in denial, spoiling the reveal. Replaying the whole flow fresh (a
+ * new session) is encouraged; changing a single answer in place is not allowed.
  */
 
 interface Option {
   value: string;
   label: string;
-  /** the clinical aside shown after this answer is chosen */
+  /** the clinical aside shown after this answer is committed */
   reading: string;
 }
 
@@ -97,61 +101,46 @@ const QUESTIONS: Question[] = [
 export default function AssessmentPage() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  // The committed answer for the CURRENT question. Once set, it is locked.
+  const [locked, setLocked] = useState<string | null>(null);
 
   const question = QUESTIONS[index];
   const isLast = index === QUESTIONS.length - 1;
   const chosen = useMemo(
-    () => question.options.find((o) => o.value === selected) ?? null,
-    [question, selected],
+    () => question.options.find((o) => o.value === locked) ?? null,
+    [question, locked],
   );
 
-  function choose(value: string) {
-    setSelected(value);
+  function commit(value: string) {
+    // One-way: ignore any click once an answer is committed for this question.
+    if (locked !== null) return;
+    setLocked(value);
+
     // Persist immediately. Q1 is the self-reported market carried to beat 5.
     if (question.id === "market") {
       patchFlow({ market: value as Market });
     }
     patchFlow({
-      answers: { ...(getAnswers()), [question.id]: value },
+      answers: { ...getFlow().answers, [question.id]: value },
     });
   }
 
-  function getAnswers(): Record<string, string> {
-    // Read straight from storage so we always merge onto the latest.
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = window.sessionStorage.getItem("gct.flow");
-      const parsed = raw ? (JSON.parse(raw) as { answers?: Record<string, string> }) : {};
-      return parsed.answers ?? {};
-    } catch {
-      return {};
-    }
-  }
-
   function advance() {
+    if (locked === null) return;
     if (isLast) {
       router.push("/denial");
       return;
     }
     setIndex((i) => i + 1);
-    setSelected(null);
+    setLocked(null);
   }
 
   return (
     <BeatShell theme="assessment" phase="Assessment">
       <div className="flex flex-1 flex-col">
-        <div className="flex items-center justify-between">
-          <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
-            Assessment · {String(index + 1).padStart(2, "0")} / 0{QUESTIONS.length}
-          </span>
-          <Link
-            href="/denial"
-            className="readout text-xs uppercase tracking-[0.18em] text-clinic-muted underline underline-offset-4 transition-colors hover:text-clinic-fg"
-          >
-            skip assessment →
-          </Link>
-        </div>
+        <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
+          Assessment · {String(index + 1).padStart(2, "0")} / 0{QUESTIONS.length}
+        </span>
 
         {/* The question re-types each time index changes (key remount). */}
         <h1
@@ -163,43 +152,46 @@ export default function AssessmentPage() {
 
         <div className="mt-8 flex flex-col gap-3">
           {question.options.map((option, i) => {
-            const isSelected = selected === option.value;
+            const isChosen = locked === option.value;
+            const isLockedOut = locked !== null && !isChosen;
             return (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => choose(option.value)}
-                aria-pressed={isSelected}
-                className={`gct-rise flex items-center justify-between rounded-xl border px-5 py-4 text-left text-sm font-medium transition-colors ${
-                  isSelected
+                onClick={() => commit(option.value)}
+                disabled={locked !== null}
+                aria-pressed={isChosen}
+                className={`gct-rise flex items-center justify-between rounded-xl border px-5 py-4 text-left text-sm font-medium transition-all ${
+                  isChosen
                     ? "border-clinic-accent bg-clinic-accent/10 text-clinic-fg"
-                    : "border-clinic-line bg-clinic-surface text-clinic-fg hover:border-clinic-accent/60"
+                    : isLockedOut
+                      ? "cursor-default border-clinic-line bg-clinic-surface text-clinic-muted opacity-40"
+                      : "cursor-pointer border-clinic-line bg-clinic-surface text-clinic-fg hover:border-clinic-accent/60"
                 }`}
                 style={{ animationDelay: `${120 + i * 70}ms` }}
               >
                 <span>{option.label}</span>
-                <span
-                  aria-hidden
-                  className={`grid h-5 w-5 place-items-center rounded-full border text-[0.6rem] ${
-                    isSelected
-                      ? "border-clinic-accent bg-clinic-accent text-white"
-                      : "border-clinic-line text-transparent"
-                  }`}
-                >
-                  ✓
-                </span>
+                {isChosen ? (
+                  <span className="readout flex items-center gap-1.5 text-[0.65rem] uppercase tracking-[0.16em] text-clinic-accent">
+                    <span aria-hidden>✓</span> Committed
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden
+                    className="grid h-5 w-5 place-items-center rounded-full border border-clinic-line text-[0.6rem] text-transparent"
+                  >
+                    ✓
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {/* The clinical reading + continue appear once an answer is chosen. */}
+        {/* The clinical reading appears once an answer is committed. */}
         <div className="mt-8 min-h-[3.5rem]">
           {chosen && (
-            <p
-              key={chosen.value}
-              className="readout text-sm text-clinic-muted"
-            >
+            <p key={chosen.value} className="readout text-sm text-clinic-muted">
               <TypeLine text={chosen.reading} speed={16} />
             </p>
           )}
@@ -209,7 +201,7 @@ export default function AssessmentPage() {
           <button
             type="button"
             onClick={advance}
-            disabled={!selected}
+            disabled={locked === null}
             className="inline-flex rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isLast ? "Complete assessment" : "Continue"} →

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { BeatShell } from "@/components/BeatShell";
@@ -14,11 +15,12 @@ import { getFlow, type Market } from "@/lib/flow";
  * Beat 3 — Diagnosis of denial. Whatever the patient answered, the clinic
  * arrives at the same conclusion; only the phrasing is route-specific. A short
  * clinical response, then intake metrics measured in CU. Amber (warning) theme.
+ *
+ * The assessment is mandatory, so a market is always on file — arriving here
+ * without one means the flow was skipped, and we send the patient back to it.
  */
 
-type MarketKey = Market | "unknown";
-
-const VERDICT: Record<MarketKey, { line: string; note: string }> = {
+const VERDICT: Record<Market, { line: string; note: string }> = {
   bull: {
     line: "Denial. Classic presentation.",
     note: "You reported a bull market. The confidence is noted. Confidence is not a treatment.",
@@ -31,36 +33,28 @@ const VERDICT: Record<MarketKey, { line: string; note: string }> = {
     line: "Acceptance. The most dangerous stage.",
     note: "You named it correctly, which means you are no longer bracing. That is precisely when it lands.",
   },
-  unknown: {
-    line: "Denial. We'll take it as read.",
-    note: "You skipped the questions. The clinic has seen enough presentations to fill in the rest.",
-  },
 };
 
-const METRICS: Record<MarketKey, Array<{ label: string; value: number }>> = {
+// All CU metrics are on a fixed 0–100 scale. The values are deliberately
+// abnormal — the patient is hopium-rich and deep in denial.
+const METRICS: Record<Market, Array<{ label: string; value: number }>> = {
   bull: [
-    { label: "Hopium Reserve", value: 84 },
+    { label: "Hopium Reserve", value: 92 },
     { label: "Conviction", value: 88 },
-    { label: "Emotional Liquidity", value: 41 },
+    { label: "Emotional Liquidity", value: 31 },
     { label: "Denial Index", value: 96 },
   ],
   chop: [
-    { label: "Hopium Reserve", value: 57 },
-    { label: "Conviction", value: 44 },
-    { label: "Emotional Liquidity", value: 92 },
-    { label: "Denial Index", value: 81 },
+    { label: "Hopium Reserve", value: 61 },
+    { label: "Conviction", value: 47 },
+    { label: "Emotional Liquidity", value: 54 },
+    { label: "Denial Index", value: 79 },
   ],
   bear: [
-    { label: "Hopium Reserve", value: 22 },
-    { label: "Conviction", value: 51 },
-    { label: "Emotional Liquidity", value: 138 },
-    { label: "Denial Index", value: 73 },
-  ],
-  unknown: [
-    { label: "Hopium Reserve", value: 64 },
-    { label: "Conviction", value: 60 },
-    { label: "Emotional Liquidity", value: 100 },
-    { label: "Denial Index", value: 88 },
+    { label: "Hopium Reserve", value: 26 },
+    { label: "Conviction", value: 63 },
+    { label: "Emotional Liquidity", value: 58 },
+    { label: "Denial Index", value: 71 },
   ],
 };
 
@@ -72,18 +66,36 @@ const STEPS = [
 ];
 
 export default function DenialPage() {
-  const [market, setMarket] = useState<MarketKey>("unknown");
+  const router = useRouter();
+  const [market, setMarket] = useState<Market | null>(null);
   const [measured, setMeasured] = useState(false);
 
-  // Flow state lives in sessionStorage — read it after mount to avoid any
-  // server/client mismatch. Deferred a frame so we never setState synchronously
-  // inside the effect body.
+  // Flow state lives in sessionStorage — read it after mount (deferred a frame
+  // so we never setState synchronously in the effect body). The assessment is
+  // mandatory: no market on file means the flow was skipped, so redirect back.
   useEffect(() => {
-    const raf = requestAnimationFrame(() =>
-      setMarket(getFlow().market ?? "unknown"),
-    );
+    const raf = requestAnimationFrame(() => {
+      const m = getFlow().market;
+      if (!m) {
+        router.replace("/assessment");
+        return;
+      }
+      setMarket(m);
+    });
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [router]);
+
+  if (!market) {
+    // Momentary state while reading storage / redirecting.
+    return (
+      <BeatShell theme="denial" phase="Diagnosis">
+        <p className="readout flex items-center gap-2 text-sm text-clinic-muted">
+          <span className="gct-breathe inline-block h-2 w-2 rounded-full bg-clinic-accent" />
+          Reviewing your assessment…
+        </p>
+      </BeatShell>
+    );
+  }
 
   const verdict = VERDICT[market];
   const metrics = METRICS[market];
