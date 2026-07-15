@@ -43,8 +43,13 @@ export async function GET(req: Request) {
   try {
     const asset = await searchAsset(query);
     if (!asset) {
+      // Nothing resolved: the asset itself was never found.
       return NextResponse.json(
-        { error: "No records exist for this patient." },
+        {
+          error:
+            "No records found for this asset. Either it doesn't exist, or you've repressed it so thoroughly the market has too.",
+          reason: "not_found",
+        },
         { status: 404, headers: { "Cache-Control": STABLE_CACHE } },
       );
     }
@@ -56,8 +61,9 @@ export async function GET(req: Request) {
 
     const candles = await fetchOhlc(asset.id);
     if (candles.length === 0) {
+      // The asset resolved, but has no price history to pull.
       return NextResponse.json(
-        { error: "No records exist for this patient." },
+        { error: "No records exist for this patient.", reason: "no_ohlc" },
         { status: 404, headers: { "Cache-Control": STABLE_CACHE } },
       );
     }
