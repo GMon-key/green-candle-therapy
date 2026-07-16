@@ -106,6 +106,21 @@ export const DIAGNOSIS_CODE = {
 /** Highest valid diagnosis code. Mirrors `RecoveryLog.MAX_DIAGNOSIS_CODE`. */
 export const MAX_DIAGNOSIS_CODE = 3;
 
+/**
+ * DISPLAY-ONLY clinic identifiers for the formal diagnosis readout. These are
+ * cosmetic in-world codes (format GCT-3xx) shown to the patient — DISTINCT from
+ * {DIAGNOSIS_CODE}, the 0..3 value carried on-chain. Never conflate the two:
+ * renumbering these has no on-chain effect, and the on-chain codes never appear
+ * in the UI. This is a fictional clinic scheme — it does NOT claim conformity
+ * with, or resemble, any real medical classification system.
+ */
+export const DIAGNOSIS_DISPLAY_CODE = {
+  coma: "GCT-300",
+  euphoria: "GCT-301",
+  drawdown: "GCT-302",
+  chop: "GCT-303",
+} as const satisfies Record<Regime, string>;
+
 /** The numeric code for a diagnosed regime, as stored on-chain. */
 export function diagnosisCodeFor(regime: Regime): number {
   return DIAGNOSIS_CODE[regime];

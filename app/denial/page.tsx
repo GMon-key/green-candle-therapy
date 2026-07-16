@@ -8,34 +8,23 @@ import { BeatShell } from "@/components/BeatShell";
 import { CopeStat } from "@/components/CopeStat";
 import { Processing } from "@/components/motion/Processing";
 import { TypeLine } from "@/components/motion/TypeLine";
-import { WELLBEING_UNIT_DEFINITION } from "@/lib/config";
+import { ATTENDING_CLINICIAN, ROUTES } from "@/lib/assessment";
 import { getFlow, type Market } from "@/lib/flow";
 
 /**
  * Beat 3 — Diagnosis of denial. Whatever the patient answered, the clinic
- * arrives at the same conclusion; only the phrasing is route-specific. A short
- * clinical response, then intake metrics measured in CU. Amber (warning) theme.
+ * arrives at the same conclusion; only the phrasing is route-specific. The
+ * preliminary finding (headline / supporting / route framing) is read from the
+ * shared assessment engine so it matches the route chosen at Q1. Amber theme.
  *
  * The assessment is mandatory, so a market is always on file — arriving here
  * without one means the flow was skipped, and we send the patient back to it.
+ *
+ * Metrics are on a fixed 0–100 scale and render as BARE numbers here — the CU
+ * unit and its definition are deferred to beat 7 (see CopeStat).
  */
 
-const VERDICT: Record<Market, { line: string; note: string }> = {
-  bull: {
-    line: "Denial. Classic presentation.",
-    note: "You reported a bull market. The confidence is noted. Confidence is not a treatment.",
-  },
-  chop: {
-    line: "Chop is bear with extra steps.",
-    note: "Sideways is not safety. It is the same descent, taken slowly enough to feel like a decision.",
-  },
-  bear: {
-    line: "Acceptance. The most dangerous stage.",
-    note: "You named it correctly, which means you are no longer bracing. That is precisely when it lands.",
-  },
-};
-
-// All CU metrics are on a fixed 0–100 scale. The values are deliberately
+// The intake metric values on a fixed 0–100 scale. The values are deliberately
 // abnormal — the patient is hopium-rich and deep in denial.
 const METRICS: Record<Market, Array<{ label: string; value: number }>> = {
   bull: [
@@ -97,7 +86,7 @@ export default function DenialPage() {
     );
   }
 
-  const verdict = VERDICT[market];
+  const finding = ROUTES[market].finding;
   const metrics = METRICS[market];
 
   return (
@@ -108,11 +97,25 @@ export default function DenialPage() {
         </span>
 
         <h1 className="mt-6 max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl text-clinic-alert">
-          <TypeLine text={verdict.line} speed={26} />
+          <TypeLine text={finding.headline} speed={26} />
         </h1>
 
         <p className="gct-rise mt-6 max-w-xl leading-relaxed text-clinic-muted" style={{ animationDelay: "500ms" }}>
-          {verdict.note}
+          {finding.supporting}
+        </p>
+
+        <p
+          className="gct-rise mt-4 max-w-xl text-sm font-medium leading-relaxed text-clinic-fg"
+          style={{ animationDelay: "640ms" }}
+        >
+          {finding.routeFraming}
+        </p>
+
+        <p
+          className="gct-rise mt-4 text-xs text-clinic-muted"
+          style={{ animationDelay: "760ms" }}
+        >
+          Attending clinician: {ATTENDING_CLINICIAN}
         </p>
 
         {/* Intake metrics — measured, then revealed. */}
@@ -128,21 +131,16 @@ export default function DenialPage() {
               onDone={() => setMeasured(true)}
             />
           ) : (
-            <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {metrics.map((m, i) => (
-                  <CopeStat
-                    key={m.label}
-                    label={m.label}
-                    value={m.value}
-                    delayMs={i * 90}
-                  />
-                ))}
-              </div>
-              <p className="mt-4 max-w-xl text-xs leading-relaxed text-clinic-muted">
-                {WELLBEING_UNIT_DEFINITION}
-              </p>
-            </>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {metrics.map((m, i) => (
+                <CopeStat
+                  key={m.label}
+                  label={m.label}
+                  value={m.value}
+                  delayMs={i * 90}
+                />
+              ))}
+            </div>
           )}
         </div>
 

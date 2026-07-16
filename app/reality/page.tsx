@@ -7,20 +7,24 @@ import { BeatShell } from "@/components/BeatShell";
 import { Processing } from "@/components/motion/Processing";
 import { TypeLine } from "@/components/motion/TypeLine";
 import { RealityChart } from "@/components/RealityChart";
+import { ATTENDING_CLINICIAN, ROUTES } from "@/lib/assessment";
 import {
   type Candle,
   classifyRegime,
   deriveMetrics,
-  DIAGNOSIS_CODE,
-  type Regime,
+  DIAGNOSIS_DISPLAY_CODE,
 } from "@/lib/diagnosis";
-import { getFlow, type Market, MARKET_LABEL } from "@/lib/flow";
+import { getFlow, type Market } from "@/lib/flow";
 
 /**
  * Beat 5 — Reality. The real 30-day record for the chosen asset, an honest
  * data-derived diagnosis (deriveMetrics + classifyRegime), and the contrast
  * with what the patient self-reported. This is the last beat before treatment;
  * NO treatment/recolour is applied here — beat 6 is a separate session.
+ *
+ * The diagnosis and every market vital come from the REAL data. The self-report
+ * intro and its route framing come from the shared assessment engine (keyed by
+ * the patient's Q1 answer) — framing only; they never touch the chart.
  */
 
 type Asset = NonNullable<ReturnType<typeof getFlow>["asset"]>;
@@ -30,14 +34,6 @@ type State =
   | { kind: "empty" }
   | { kind: "error"; message: string }
   | { kind: "data"; candles: Candle[]; asset?: Asset; market?: Market };
-
-// What each diagnosed regime implies about the market, for the self-report contrast.
-const IMPLIED_MARKET: Record<Regime, Market | null> = {
-  euphoria: "bull",
-  drawdown: "bear",
-  coma: null,
-  chop: "chop",
-};
 
 const STEPS = [
   "Pulling 30-day history",
@@ -174,12 +170,17 @@ function DataView({
 }) {
   const metrics = deriveMetrics(candles);
   const diagnosis = classifyRegime(metrics);
-  const code = DIAGNOSIS_CODE[diagnosis.regime];
+  const displayCode = DIAGNOSIS_DISPLAY_CODE[diagnosis.regime];
 
   const symbol = (asset?.symbol ?? "asset").toUpperCase();
   const title = `${asset?.name ?? "Asset"} · ${symbol}/USD · 30 days`;
 
-  const contrast = buildContrast(market, diagnosis.regime);
+  // Self-report framing is route-specific (keyed by the patient's Q1 answer),
+  // read from the shared engine. If somehow no market is on file, the data
+  // stands on its own — the diagnosis above is always data-derived regardless.
+  const selfReport = market
+    ? ROUTES[market].beat5Intro
+    : "No self-report on file. The data will speak for itself.";
 
   if (!revealed) {
     return (
@@ -210,9 +211,14 @@ function DataView({
 
       {/* Diagnosis */}
       <div>
-        <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
-          Diagnosis · code {code}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
+            Formal diagnosis · {displayCode}
+          </span>
+          <span className="readout text-[0.65rem] uppercase tracking-[0.18em] text-clinic-muted/70">
+            ICD-GC-143
+          </span>
+        </div>
         <h1 className="mt-3 max-w-2xl text-2xl font-semibold leading-tight tracking-tight sm:text-3xl text-clinic-alert">
           <TypeLine text={diagnosis.label} speed={22} />
         </h1>
@@ -226,7 +232,13 @@ function DataView({
           className="gct-rise mt-4 max-w-xl text-sm font-medium text-clinic-fg"
           style={{ animationDelay: "560ms" }}
         >
-          {contrast}
+          {selfReport}
+        </p>
+        <p
+          className="gct-rise mt-4 text-xs text-clinic-muted"
+          style={{ animationDelay: "680ms" }}
+        >
+          Attending clinician: {ATTENDING_CLINICIAN}
         </p>
       </div>
 
@@ -247,7 +259,30 @@ function DataView({
         </dl>
       </div>
 
-      {/* Begin treatment — beat 6 ships separately (see report). */}
+      {/* Treatment-assessment reading — an IN-WORLD clinical estimate, NOT a
+          market vital. It lives in its own labelled slot, well away from the
+          real-data grid above, so a careful reader never mistakes it for a
+          CoinGecko-derived figure. Exactly one such absurd metric by design. */}
+      <div>
+        <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
+          Treatment assessment · clinical estimate
+        </span>
+        <div className="mt-4 max-w-xs rounded-xl border border-dashed border-clinic-line bg-clinic-surface px-4 py-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="readout text-[0.65rem] uppercase tracking-[0.16em] text-clinic-muted">
+              Reality Acceptance
+            </span>
+            <span className="readout text-lg font-semibold tabular-nums text-clinic-fg">
+              12%
+            </span>
+          </div>
+          <p className="mt-1 text-[0.65rem] leading-relaxed text-clinic-muted">
+            Clinician&rsquo;s estimate. Not measured from market data.
+          </p>
+        </div>
+      </div>
+
+      {/* Admit patient — beat 6 (treatment) ships separately (see report). */}
       <div className="mt-2 border-t border-clinic-line pt-6">
         <button
           type="button"
@@ -255,7 +290,7 @@ function DataView({
           aria-disabled="true"
           className="inline-flex cursor-not-allowed rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white opacity-40"
         >
-          Begin treatment →
+          Admit Patient →
         </button>
         <p className="mt-3 text-xs text-clinic-muted">
           The treatment room is being prepared. Your session opens shortly.
@@ -292,16 +327,4 @@ function Vital({
 function fmtSigned(n: number): string {
   const rounded = Math.round(n * 10) / 10;
   return rounded > 0 ? `+${rounded}` : `${rounded}`;
-}
-
-function buildContrast(market: Market | undefined, regime: Regime): string {
-  if (!market) {
-    return "No self-report on file. The data will speak for itself.";
-  }
-  const implied = IMPLIED_MARKET[regime];
-  const label = MARKET_LABEL[market];
-  if (implied === market) {
-    return `Patient self-reported: ${label}. The data concurs — a rare and unsettling agreement.`;
-  }
-  return `Patient self-reported: ${label}. The data disagrees.`;
 }

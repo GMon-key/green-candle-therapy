@@ -83,14 +83,6 @@ export default function Home() {
               Outpatient Clinic for Market-Induced Distress
             </p>
 
-            <p
-              className="gct-rise max-w-md text-lg leading-relaxed text-clinic-muted"
-              style={{ animationDelay: "250ms" }}
-            >
-              Helping traders recover from prolonged exposure to financial
-              markets.
-            </p>
-
             <ul className="flex flex-col gap-2 pt-1">
               {SERVICES.map((service, i) => (
                 <li
