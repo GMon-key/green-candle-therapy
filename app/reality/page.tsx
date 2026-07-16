@@ -303,18 +303,16 @@ function DataView({
         </div>
       )}
 
-      {/* Admit patient — beat 6 (treatment) ships separately (see report). */}
+      {/* Admit patient — the click authorises audio and enters beat 6. */}
       <div className="mt-2 border-t border-clinic-line pt-6">
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          className="inline-flex cursor-not-allowed rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white opacity-40"
+        <Link
+          href="/treatment"
+          className="inline-flex rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
         >
           Admit Patient →
-        </button>
+        </Link>
         <p className="mt-3 text-xs text-clinic-muted">
-          The treatment room is being prepared. Your session opens shortly.
+          Treatment begins immediately. Sound on; a mute control is provided.
         </p>
       </div>
     </div>
