@@ -6,151 +6,205 @@ import { useEffect, useRef, useState } from "react";
 import type { Candle } from "@/lib/diagnosis";
 
 /**
- * Beat 6 — the treatment. A custom-canvas, 60fps, fixed 30-second arc that
- * starts from the patient's REAL chart and escalates into obvious fiction, then
- * ruptures into a curated clinical explosion and holds on a triumphant, absurd,
- * all-green record. Colour doctrine is load-bearing:
+ * Beat 6 — the treatment. This is a REBUILD around real-chart continuity: the
+ * canvas opens on the patient's ACTUAL beat-5 record (same red/green candle
+ * language), holds on that painful "before", then cures it — real red candles
+ * convert red → purple-pulse → green left to right, new green candles APPEND and
+ * climb into an absurd exponential "banana" curve, and a final god candle punches
+ * off the top of the frame into a full-screen celebration.
  *
- *   GREEN  = emotional recovery / healing / reward. The payoff. Green appears
- *            ONLY when improvement actually happens.
- *   PURPLE = authority / protocol / infrastructure / computation (Monad). NOT
- *            recovery, NOT celebration. Purple is the mechanism RUNNING the
- *            treatment; it does the WORK (prep + processing) and recedes as the
- *            green RESULT dominates. Faint purple survives beneath the climax.
+ * Colour doctrine (load-bearing):
+ *   GREEN  = recovery / healing / reward. Appears only when improvement happens.
+ *   PURPLE = authority / protocol / infrastructure / computation (Monad). The
+ *            mechanism doing the WORK — scanlines, waveforms, processing — which
+ *            recedes as the green RESULT dominates. Faint purple survives beneath
+ *            the climax. Never named as blockchain.
  *
- * Duration is FIXED 30s for everyone; only INTENSITY scales with denial
- * (denial = 100 − realityAcceptance). This is a functional first pass built for
- * live feel-tuning: every timing / magnitude / colour / audio parameter is a
- * named constant in the TUNING block below.
+ * Duration is FIXED 30s; only INTENSITY scales with denial (100 − Reality
+ * Acceptance). The spectacle + sound BUILD CONTINUOUSLY from ~10s to the 30s
+ * climax (one deliberate dip at the 27–28s flatline). Functional pass for live
+ * feel-tuning: every parameter is a named constant in the TUNING block below.
  */
 
 /* ============================================================================
- * TUNING CONSTANTS — everything you'd want to feel-tune lives here.
+ * TUNING CONSTANTS
  * ========================================================================== */
 
-// —— Timeline (seconds). Phase boundaries of the fixed 30s arc. ——————————————
+// —— Timeline (seconds) ————————————————————————————————————————————————————
 const TOTAL_DURATION = 30;
 const PHASES = {
-  diagnosisComplete: { start: 0, end: 2 }, // freeze, stillness, dim
-  purplePrep: { start: 2, end: 5 }, // purple scanline calibrates
-  onset: { start: 5, end: 10 }, // first earned green candles
-  escalation: { start: 10, end: 20 }, // parallel waves, climb, particles
-  peak: { start: 20, end: 27 }, // impossible perfection, purple fades
-  flatline: { start: 27, end: 28 }, // everything freezes + monitor tone
-  godCandle: { start: 28, end: 30 }, // stretch off-top + explosion
+  realityHold: { start: 0, end: 2.5 }, // the REAL chart, held — the "before"
+  purplePrep: { start: 2.5, end: 5 }, // clinical dark + purple calibrate
+  onset: { start: 5, end: 10 }, // first real candles cured, L→R
+  escalation: { start: 10, end: 20 }, // rest cured + banana appends + ramp
+  peak: { start: 20, end: 27 }, // banana steepens, purple fades, storm builds
+  flatline: { start: 27, end: 28 }, // freeze + monitor tone (the one dip)
+  godCandle: { start: 28, end: 30 }, // god candle off-top + climax explosion
 } as const;
 
-// —— Denial → magnitude. denial 0..100 maps to an intensity multiplier. ———————
-const DENIAL_MAGNITUDE_MIN = 0.7; // at denial = 0 (accepting patient)
-const DENIAL_MAGNITUDE_MAX = 1.9; // at denial = 100 (deep denial)
-const DENIAL_SCALING = 1.0; // global scalar on the mapped magnitude
+// —— Denial → magnitude. denial 0..100 → intensity multiplier. ————————————————
+const DENIAL_MAGNITUDE_MIN = 0.7; // at denial = 0
+const DENIAL_MAGNITUDE_MAX = 1.9; // at denial = 100
+const DENIAL_SCALING = 1.0;
 
-// —— Screen dim (phase 0 lowers ambient brightness, never black). —————————————
-const SCREEN_DIM_AMOUNT = 0.16; // 0..1 overlay alpha at fullest dim
-const SCREEN_DIM_RECOVER = 0.04; // residual dim once treatment is running
+// —— Continuous escalation envelope (10s → 30s). The master build curve. ———————
+const ESCALATION_START = 10; // s — where the ramp begins
+const ESCALATION_POWER = 1.7; // >1 = builds slow then accelerates
+const ESCALATION_DENIAL_STEEPEN = 0.5; // higher denial → ramps up sooner
+const ESCALATION_AMP_MIN = 0.85; // env amplitude at denial 0
+const ESCALATION_AMP_MAX = 1.5; // env amplitude at denial 100
+const FLATLINE_DUCK = 0.06; // env floor during the flatline dip
 
-// —— Candles ———————————————————————————————————————————————————————————————
-const CANDLE_WINDOW = 56; // how many real candles to carry into treatment
-const CANDLE_GAP_RATIO = 0.24; // gap as a fraction of a candle slot
-const CANDLE_MIN_BODY_PX = 2; // never draw a body thinner than this
-const TREAT_FADE = 0.16; // how far behind the front a candle fully heals
-const ONSET_FRONT_END = 0.34; // fraction of candles healed by end of onset
-const CLIMB_HEIGHT = 0.55; // uptrend lift as a fraction of base price range
-const BODY_GROW = 0.9; // treated bodies grow by up to this fraction × mag
-const PULSE_WIDTH = 0.05; // width (in x-fraction) of the purple pulse at front
-const DOMAIN_HEADROOM = 0.12; // extra headroom above the tallest candle
-const DOMAIN_EASE = 0.08; // how fast the price domain rescales toward target
+// —— Chart continuity (match beat-5 Lightweight Charts styling). ———————————————
+const REAL_UP = "#2f9e6a"; // beat-5 up candle
+const REAL_DOWN = "#d83a3f"; // beat-5 down candle (diagnosis --clinic-alert)
+const CANDLE_WINDOW = 56; // how many real candles carry into treatment
+const CANDLE_GAP_RATIO = 0.26; // gap as a fraction of a candle slot
+const CANDLE_MIN_BODY_PX = 2;
+const GRID_LINES = 5; // faint horizontal grid (continuity), fades out
+const REALITY_BG = "#100c0c"; // warm dark echoing the diagnosis mood ("before")
+const TREATMENT_BG = "#0b100e"; // clinical dark the treatment settles into
+const CLINICAL_FADE = { start: 2.5, dur: 2.5 }; // s: reality bg → treatment bg
 
-// —— Purple prep / processing ————————————————————————————————————————————————
-const SCANLINE_SPEED = 0.65; // viewport-widths per second on a pass
+// —— Treatment sweep (real candles cured L→R) —————————————————————————————————
+const TREAT_FADE = 0.14; // how far behind the front a candle fully heals
+const ONSET_FRONT_END = 0.34; // fraction of real candles healed by end of onset
+const PULSE_WIDTH = 0.05; // width (x-fraction) of the purple pulse at the front
+const HEAL_LIFT = 0.06; // modest lift of a cured real candle (× base range)
+const BODY_GROW = 0.5; // cured bodies grow by up to this fraction × magnitude
+
+// —— The banana curve (appended green candles climbing off the real series) ————
+const APPEND_COUNT_BASE = 26; // appended candles before the god candle
+const APPEND_MIN_FACTOR = 0.7; // × count at denial 0
+const APPEND_MAX_FACTOR = 1.6; // × count at denial 100
+const APPEND_REVEAL_POWER = 1.6; // >1 = accelerating reveal (banana feel)
+const BANANA_K_MIN = 2.2; // exponential curvature at denial 0 (gentler)
+const BANANA_K_MAX = 4.6; // curvature at denial 100 (near-vertical, absurd)
+const BANANA_RISE_MIN = 0.9; // total climb (× base range) at denial 0
+const BANANA_RISE_MAX = 2.6; // total climb (× base range) at denial 100
+
+// —— Domain rescale + god candle ——————————————————————————————————————————————
+const DOMAIN_HEADROOM = 0.14; // headroom above the tallest visible candle
+const DOMAIN_EASE = 0.07; // how fast the price domain chases the climb
+const GOD_CANDLE_MULT = 5.0; // final high as a multiple of the peak domain × mag
+const GOD_FREEZE_AT = 0.5; // stretch progress where the domain STOPS rescaling
+const GOD_STRETCH_POWER = 2.4; // easing exponent on the god-candle stretch
+
+// —— Purple infrastructure ————————————————————————————————————————————————————
+const SCANLINE_SPEED = 0.6; // passes per second
 const SCANLINE_WIDTH_PX = 3;
-const SCANLINE_GLOW_PX = 26;
-const WAVEFORM_AMPLITUDE = 16; // px of the faint purple waveform behind chart
+const SCANLINE_GLOW_PX = 30;
+const WAVEFORM_AMPLITUDE = 16;
 const WAVEFORM_COUNT_PEAK = 3; // parallel processing waves during escalation
+const PURPLE_FADE_START = 20; // s — purple begins receding as green takes over
 
-// —— Particles ——————————————————————————————————————————————————————————————
-const PARTICLE_ESCAPE_RATE = 0.5; // green particles/frame/candle at full climb
-const PARTICLE_GRAVITY = -14; // px/s² (negative = they drift upward)
-const PARTICLE_MAX = 900; // hard cap on live particles (perf guard)
-const EXPLOSION_GREEN = 220; // green particle count in the rupture × mag
-const EXPLOSION_PURPLE = 40; // faint purple particles beneath (infrastructure)
-const EXPLOSION_CHECKMARKS = 10; // floating clinical checkmarks × mag
-const EXPLOSION_CASEFILES = 8; // discharge case-files raining × mag
-const EXPLOSION_CONFETTI = 90; // clinical confetti × mag
-// Curated to the 3–4 funniest absurd elements — not a chaotic dump.
-const EXPLOSION_ELEMENTS = ["green", "checkmark", "casefile", "confetti"] as const;
+// —— Continuous particle storm (emission ramps with the escalation env) ————————
+const PARTICLE_MAX = 2600; // hard cap (perf guard)
+const EMIT_RATE_BASE = 4.0; // green particles/frame at env=1, mag=1
+const EMIT_SIZE_MIN = 2;
+const EMIT_SIZE_MAX = 6;
+const EMIT_SPEED = 46; // gentle so they LINGER (visibility fix)
+const EMIT_DECAY = 0.4; // life/sec → ~2.5s lifespan
+const PARTICLE_GRAVITY = -12; // px/s² (negative = drift up)
 
-// —— God candle ————————————————————————————————————————————————————————————
-const GOD_CANDLE_MULT = 6.0; // final high as a multiple of the peak domain × mag
-const GOD_FREEZE_AT = 0.55; // stretch progress at which the domain STOPS
-//                              rescaling, so the candle punches off the top.
-const GOD_STRETCH_POWER = 2.2; // easing exponent on the stretch (slow → violent)
-const GREEN_FLASH_INTENSITY = 0.82; // peak alpha of the green screen fill
+// —— Fireworks (start sparse ~15s, grow into the finale) ——————————————————————
+const FIREWORK_START = 15; // s
+const FIREWORK_INTERVAL_MAX = 2.2; // s between bursts when the ramp is low
+const FIREWORK_INTERVAL_MIN = 0.28; // s between bursts near the climax
+const FIREWORK_BURST = 46; // sparks per burst × env × mag
+const FIREWORK_SPEED = 260;
+const FIREWORK_DECAY = 0.5;
 
-// —— Heartbeat (bpm at each phase edge; the loop interpolates between). ———————
+// —— Climax explosion (god candle). Curated but ABUNDANT + HELD to screenshot. —
+const EXPLOSION_RINGS = 6; // radial firework rings across the viewport
+const EXPLOSION_GREEN = 520; // × magnitude
+const EXPLOSION_CONFETTI = 220; // × magnitude
+const EXPLOSION_CHECKMARKS = 16; // floating clinical checkmarks × magnitude
+const EXPLOSION_CASEFILES = 14; // raining discharge case-files × magnitude
+const EXPLOSION_PURPLE = 70; // faint infrastructure beneath × magnitude
+const EXPLOSION_SPEED = 340;
+const EXPLOSION_DECAY = 0.16; // SLOW → ~6s hold (visibility + screenshot fix)
+const EXPLOSION_GREEN_SIZE: [number, number] = [3, 9];
+const EXPLOSION_CONFETTI_SIZE: [number, number] = [4, 10];
+const CASEFILE_FALL = 150; // px/s² gravity for raining case-files
+const GREEN_FLASH_INTENSITY = 0.85; // peak green screen-fill alpha at climax
+const GREEN_FLASH_FADE = 1.9; // s the flash takes to fade
+const GREEN_SATURATION_MAX = 0.15; // progressive green wash alpha at peak env
+
+// —— Heartbeat (bpm at each phase edge; the loop interpolates) —————————————————
 const HEARTBEAT_BPM = {
-  diagnosisComplete: 60,
-  purplePrepStart: 65,
+  realityHold: 60,
+  purplePrepStart: 64,
   purplePrepEnd: 72,
   onsetEnd: 80,
-  escalationEnd: 110,
-  peakEnd: 130,
-  flatline: 150, // races just before the monitor flatlines
-  climax: 150, // euphoric burst out of the flatline
+  escalationEnd: 112,
+  peakEnd: 132,
+  flatline: 150,
+  climax: 150,
 } as const;
 const HEARTBEAT_DUB_DELAY = 0.14; // s between "lub" and "dub"
 
-// —— Audio levels (dB-ish gains, kept conservative for a first pass). ————————
+// —— Audio (kept: heartbeat + purple blips + flatline; REWORKED: warm bed + bloom) —
 const AUDIO = {
   masterDb: -6,
   heartbeatDb: -8,
-  blipDb: -20,
-  subBassMax: 0.5, // linear gain the escalation sub-bass swells toward
-  flatlineDb: -14,
+  blipDb: -22,
+  bedMax: 0.5, // warm drone bed gain at full escalation
+  subMax: 0.62, // sub-bass bloom gain at full escalation
+  filterMin: 200, // Hz — bed lowpass at low escalation (dark/warm)
+  filterMax: 2600, // Hz — bed lowpass at full escalation (open/euphoric)
+  flatlineDb: -13,
   flatlineHz: 660, // monitor tone (softer than a literal 1kHz)
-  climaxDb: -7,
+  climaxDb: -5,
+  reverbDecay: 4.2, // warmth
+  reverbWet: 0.36,
 } as const;
 
-// —— Colours (canvas needs concrete values; defaults mirror the palette). ————
+// —— Colours ———————————————————————————————————————————————————————————————
 const COLORS = {
-  bg: "#0b100e", // treatment dark chrome
-  gridLine: "rgba(120,140,130,0.06)",
-  candleGrey: "#42514a", // untreated / real candle (desaturated)
-  wickGrey: "#354139",
   green: "#22c063",
   greenBright: "#2ce56b",
   greenParticle: "#8affc0",
+  greenGlow: "#3dff86",
   purple: "#836ef9", // Monad — processing/authority only
   purpleStrong: "#6e54f0",
   purpleSoft: "#a996ff",
+  gridLine: "rgba(150,170,160,0.05)",
   checkmark: "#8affc0",
-  casefile: "#e6f1ea",
-  confetti: ["#2ce56b", "#8affc0", "#a996ff", "#e6f1ea"],
+  casefile: "#eef6f0",
+  confetti: ["#2ce56b", "#8affc0", "#a996ff", "#eef6f0", "#22c063"],
 } as const;
 
-// —— Deadpan clinical captions (no exclamation, ever). ————————————————————————
+// —— Deadpan clinical captions (no exclamation, ever) ——————————————————————————
 const CAPTIONS = {
-  diagnosisComplete: "Preparing Visual Rehabilitation Protocol…",
+  realityHold: "Preparing Visual Rehabilitation Protocol…",
   purplePrep: "Calibrating baseline exposure…",
   onset: "Administering corrective candles…",
   escalation: "Treatment responding.",
   peak: "Patient responding favourably.",
-  flatline: "", // held stillness — the "did we lose them" beat
+  flatline: "",
   godCandle: "Visual rehabilitation completed successfully.",
 } as const;
 
 /* ============================================================================
- * Types + small helpers
+ * Types + helpers
  * ========================================================================== */
 
 type PhaseName = keyof typeof PHASES;
 
-interface WorkCandle {
+interface RealCandle {
   o: number;
   h: number;
   l: number;
   c: number;
-  cx: number; // normalised x position 0..1
+  cx: number; // normalised position across the REAL series, 0..1
+}
+
+interface AppendCandle {
+  o: number;
+  h: number;
+  l: number;
+  c: number;
 }
 
 interface Particle {
@@ -158,19 +212,21 @@ interface Particle {
   y: number;
   vx: number;
   vy: number;
-  life: number; // 1 → 0
+  life: number;
   decay: number;
   size: number;
   type: "green" | "purple" | "checkmark" | "casefile" | "confetti";
   color: string;
   rot: number;
   vrot: number;
+  gravity: number;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * clamp(t, 0, 1);
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 function phaseAt(t: number): PhaseName {
   const names = Object.keys(PHASES) as PhaseName[];
@@ -180,7 +236,7 @@ function phaseAt(t: number): PhaseName {
   return "godCandle";
 }
 
-/** How far the treatment front has swept across the candles at time t (0..1). */
+/** How far the treatment front has swept the REAL candles at time t (0..1). */
 function frontProgress(t: number): number {
   if (t < PHASES.onset.start) return 0;
   if (t < PHASES.onset.end) {
@@ -199,50 +255,50 @@ function frontProgress(t: number): number {
 /** Interpolated heartbeat bpm at time t. */
 function bpmAt(t: number): number {
   const H = HEARTBEAT_BPM;
-  if (t < PHASES.purplePrep.start) return H.diagnosisComplete;
-  if (t < PHASES.purplePrep.end) {
-    const p = (t - PHASES.purplePrep.start) / (PHASES.purplePrep.end - PHASES.purplePrep.start);
-    return lerp(H.purplePrepStart, H.purplePrepEnd, p);
-  }
-  if (t < PHASES.onset.end) {
-    const p = (t - PHASES.onset.start) / (PHASES.onset.end - PHASES.onset.start);
-    return lerp(H.purplePrepEnd, H.onsetEnd, p);
-  }
-  if (t < PHASES.escalation.end) {
-    const p = (t - PHASES.escalation.start) / (PHASES.escalation.end - PHASES.escalation.start);
-    return lerp(H.onsetEnd, H.escalationEnd, p);
-  }
-  if (t < PHASES.peak.end) {
-    const p = (t - PHASES.peak.start) / (PHASES.peak.end - PHASES.peak.start);
-    return lerp(H.escalationEnd, H.peakEnd, p);
-  }
+  if (t < PHASES.purplePrep.start) return H.realityHold;
+  if (t < PHASES.purplePrep.end)
+    return lerp(H.purplePrepStart, H.purplePrepEnd, (t - 2.5) / 2.5);
+  if (t < PHASES.onset.end)
+    return lerp(H.purplePrepEnd, H.onsetEnd, (t - 5) / 5);
+  if (t < PHASES.escalation.end)
+    return lerp(H.onsetEnd, H.escalationEnd, (t - 10) / 10);
+  if (t < PHASES.peak.end)
+    return lerp(H.escalationEnd, H.peakEnd, (t - 20) / 7);
   if (t < PHASES.flatline.end) return H.flatline;
   return H.climax;
 }
 
 /* ============================================================================
- * Audio — synthesized heartbeat/processing/flatline/climax. Defensive: every
- * call is wrapped so a suspended context (autoplay block / mobile silent-switch)
- * degrades to silence and NEVER throws.
+ * Audio — heartbeat + purple processing (KEPT), warm bed + euphoric bloom
+ * (REWORKED for warmth). Defensive: a suspended context degrades to silence.
  * ========================================================================== */
 
 class TreatmentAudio {
   private ready = false;
   private master?: Tone.Volume;
+  private reverb?: Tone.Reverb;
   private heart?: Tone.MembraneSynth;
   private blipSynth?: Tone.Synth;
+  private droneOscs: Tone.Oscillator[] = [];
+  private droneGain?: Tone.Gain;
+  private droneFilter?: Tone.Filter;
   private subOsc?: Tone.Oscillator;
   private subGain?: Tone.Gain;
   private flatOsc?: Tone.Oscillator;
   private flatGain?: Tone.Gain;
-  private chord?: Tone.PolySynth;
+  private bloomSynth?: Tone.PolySynth;
   private flatlineActive = false;
 
   async init(): Promise<boolean> {
     try {
       await Tone.start();
       this.master = new Tone.Volume(AUDIO.masterDb).toDestination();
+      this.reverb = new Tone.Reverb({
+        decay: AUDIO.reverbDecay,
+        wet: AUDIO.reverbWet,
+      }).connect(this.master);
 
+      // Heartbeat — KEPT.
       this.heart = new Tone.MembraneSynth({
         pitchDecay: 0.02,
         octaves: 3,
@@ -250,25 +306,47 @@ class TreatmentAudio {
       }).connect(this.master);
       this.heart.volume.value = AUDIO.heartbeatDb;
 
+      // Purple processing blips — KEPT.
       this.blipSynth = new Tone.Synth({
         oscillator: { type: "triangle" },
         envelope: { attack: 0.002, decay: 0.08, sustain: 0, release: 0.05 },
       }).connect(this.master);
       this.blipSynth.volume.value = AUDIO.blipDb;
 
+      // Warm drone bed — REWORKED. Detuned oscillators → lowpass → reverb.
+      this.droneGain = new Tone.Gain(0);
+      this.droneFilter = new Tone.Filter(AUDIO.filterMin, "lowpass").connect(
+        this.reverb,
+      );
+      this.droneGain.connect(this.droneFilter);
+      const droneNotes = [65.41, 98.0, 130.81, 164.81]; // C2 G2 C3 E3 — warm major
+      for (const f of droneNotes) {
+        const o = new Tone.Oscillator(f, "sawtooth");
+        o.detune.value = rand(-8, 8);
+        o.volume.value = -12;
+        o.connect(this.droneGain);
+        o.start();
+        this.droneOscs.push(o);
+      }
+
+      // Sub-bass bloom.
       this.subGain = new Tone.Gain(0).connect(this.master);
-      this.subOsc = new Tone.Oscillator(42, "sine").connect(this.subGain);
+      this.subOsc = new Tone.Oscillator(32.7, "sine").connect(this.subGain);
       this.subOsc.start();
 
+      // Flatline monitor tone — KEPT.
       this.flatGain = new Tone.Gain(0).connect(this.master);
-      this.flatOsc = new Tone.Oscillator(AUDIO.flatlineHz, "sine").connect(this.flatGain);
+      this.flatOsc = new Tone.Oscillator(AUDIO.flatlineHz, "sine").connect(
+        this.flatGain,
+      );
       this.flatOsc.start();
 
-      this.chord = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "sawtooth" },
-        envelope: { attack: 0.02, decay: 0.4, sustain: 0.3, release: 1.6 },
-      }).connect(this.master);
-      this.chord.volume.value = AUDIO.climaxDb;
+      // Euphoric climax bloom — REWORKED: warm, slow-attack, big reverb tail.
+      this.bloomSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "fattriangle", spread: 30, count: 3 },
+        envelope: { attack: 0.35, decay: 1.2, sustain: 0.6, release: 3.6 },
+      }).connect(this.reverb);
+      this.bloomSynth.volume.value = AUDIO.climaxDb;
 
       this.ready = true;
       return true;
@@ -299,17 +377,21 @@ class TreatmentAudio {
   blip() {
     if (!this.ready || !this.blipSynth) return;
     try {
-      const note = 520 + Math.floor(easeOut(Math.abs(Math.sin(Tone.now()))) * 340);
+      const note = 520 + Math.floor(Math.random() * 320);
       this.blipSynth.triggerAttackRelease(note, "32n", Tone.now(), 0.5);
     } catch {
       /* no-op */
     }
   }
 
-  setSwell(level: number) {
-    if (!this.ready || !this.subGain) return;
+  /** Continuous bed intensity 0..1 — swells volume, opens the filter, blooms sub. */
+  setEscalation(level: number) {
+    if (!this.ready) return;
+    const l = clamp(level, 0, 1);
     try {
-      this.subGain.gain.rampTo(clamp(level, 0, 1) * AUDIO.subBassMax, 0.12);
+      this.droneGain?.gain.rampTo(l * AUDIO.bedMax, 0.2);
+      this.droneFilter?.frequency.rampTo(lerp(AUDIO.filterMin, AUDIO.filterMax, l), 0.3);
+      this.subGain?.gain.rampTo(l * AUDIO.subMax, 0.2);
     } catch {
       /* no-op */
     }
@@ -321,15 +403,29 @@ class TreatmentAudio {
     this.flatlineActive = on;
     try {
       this.flatGain.gain.rampTo(on ? 0.5 : 0, on ? 0.03 : 0.25);
+      if (on) {
+        // Duck the bed to near-silence for the deliberate dip.
+        this.droneGain?.gain.rampTo(AUDIO.bedMax * 0.08, 0.08);
+        this.subGain?.gain.rampTo(0, 0.08);
+      }
     } catch {
       /* no-op */
     }
   }
 
-  climax() {
-    if (!this.ready || !this.chord) return;
+  /** Euphoric bloom out of the flatline — warm major chord + sub swell. */
+  bloom() {
+    if (!this.ready) return;
     try {
-      this.chord.triggerAttackRelease(["C4", "E4", "G4", "C5"], "2n", Tone.now(), 0.9);
+      this.bloomSynth?.triggerAttackRelease(
+        ["C3", "G3", "C4", "E4", "G4", "D5"],
+        "1n",
+        Tone.now(),
+        0.9,
+      );
+      this.droneGain?.gain.rampTo(AUDIO.bedMax, 0.15);
+      this.subGain?.gain.rampTo(AUDIO.subMax, 0.15);
+      this.droneFilter?.frequency.rampTo(AUDIO.filterMax, 0.2);
     } catch {
       /* no-op */
     }
@@ -337,16 +433,21 @@ class TreatmentAudio {
 
   dispose() {
     this.ready = false;
-    for (const node of [
+    const nodes: Array<{ dispose: () => void } | undefined> = [
       this.heart,
       this.blipSynth,
+      this.droneGain,
+      this.droneFilter,
       this.subOsc,
       this.subGain,
       this.flatOsc,
       this.flatGain,
-      this.chord,
+      this.bloomSynth,
+      this.reverb,
       this.master,
-    ]) {
+      ...this.droneOscs,
+    ];
+    for (const node of nodes) {
       try {
         node?.dispose();
       } catch {
@@ -375,10 +476,9 @@ export function TreatmentExperience({
   const [done, setDone] = useState(false);
   const muteRef = useRef(false);
 
-  // Magnitude from denial (0..100). Higher denial → bigger, faster, more absurd.
+  const denialNorm = clamp(denial, 0, 100) / 100;
   const magnitude =
-    lerp(DENIAL_MAGNITUDE_MIN, DENIAL_MAGNITUDE_MAX, clamp(denial, 0, 100) / 100) *
-    DENIAL_SCALING;
+    lerp(DENIAL_MAGNITUDE_MIN, DENIAL_MAGNITUDE_MAX, denialNorm) * DENIAL_SCALING;
 
   useEffect(() => {
     muteRef.current = muted;
@@ -389,22 +489,47 @@ export function TreatmentExperience({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // —— Prepare the working candle set from the REAL data. ——————————————————
+    // —— Real data → working set (matches beat 5's series). ————————————————————
     const src = candles.slice(-CANDLE_WINDOW);
     const n = Math.max(src.length, 1);
-    const prices = src.flatMap((c) => [c.h, c.l]);
-    const baseMin = prices.length ? Math.min(...prices) : 0;
-    const baseMax = prices.length ? Math.max(...prices) : 1;
+    const priceVals = src.flatMap((c) => [c.h, c.l]);
+    const baseMin = priceVals.length ? Math.min(...priceVals) : 0;
+    const baseMax = priceVals.length ? Math.max(...priceVals) : 1;
     const baseRange = Math.max(baseMax - baseMin, 1e-9);
-    const work: WorkCandle[] = src.map((c, i) => ({
+    const real: RealCandle[] = src.map((c, i) => ({
       o: c.o,
       h: c.h,
       l: c.l,
       c: c.c,
       cx: n > 1 ? i / (n - 1) : 0.5,
     }));
+    const lastRealClose = real[real.length - 1]?.c ?? baseMax;
 
+    // —— Precompute the banana (appended green candles). ——————————————————————
+    const A = Math.max(
+      1,
+      Math.round(
+        APPEND_COUNT_BASE * lerp(APPEND_MIN_FACTOR, APPEND_MAX_FACTOR, denialNorm),
+      ),
+    );
+    const bananaK = lerp(BANANA_K_MIN, BANANA_K_MAX, denialNorm);
+    const bananaRise = lerp(BANANA_RISE_MIN, BANANA_RISE_MAX, denialNorm) * baseRange;
+    const bananaShape = (u: number) =>
+      (Math.exp(bananaK * u) - 1) / (Math.exp(bananaK) - 1);
+    const appended: AppendCandle[] = [];
+    let prevClose = lastRealClose;
+    for (let j = 1; j <= A; j++) {
+      const close = lastRealClose + bananaShape(j / A) * bananaRise;
+      const open = prevClose;
+      const wick = Math.max((close - open) * 0.3, baseRange * 0.004);
+      appended.push({ o: open, c: close, h: close + wick, l: open - baseRange * 0.004 });
+      prevClose = close;
+    }
+    const godOpen = prevClose;
+
+    // —— Canvas sizing ————————————————————————————————————————————————————————
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0;
     let H = 0;
@@ -423,40 +548,44 @@ export function TreatmentExperience({
 
     // —— Runtime state ————————————————————————————————————————————————————————
     const particles: Particle[] = [];
-    const domainMin = baseMin - baseRange * 0.05;
+    const domainMin = baseMin - baseRange * 0.06;
     let domainMax = baseMax + baseRange * DOMAIN_HEADROOM;
     let nextBeat = 0;
     let nextBlip = 0;
+    let nextFirework = FIREWORK_START;
     let explosionFired = false;
     let lastPhase: PhaseName | "" = "";
     let ecg: number[] = [];
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // —— Audio (skipped entirely under reduced motion). ——————————————————————
     const audio = new TreatmentAudio();
-    if (!reduce) {
-      void audio.init().then((ok) => {
-        if (ok) audio.setMute(muteRef.current);
-      });
-    }
-    // Fallback unlock: if autoplay was blocked, the first interaction starts it.
+    if (!reduce) void audio.init().then((ok) => ok && audio.setMute(muteRef.current));
     const unlock = () => {
       if (!reduce) void audio.init().then((ok) => ok && audio.setMute(muteRef.current));
     };
     window.addEventListener("pointerdown", unlock, { once: true });
 
-    // —— Chart geometry ——————————————————————————————————————————————————————
-    const chartPad = () => ({
-      left: 40,
-      right: 40,
-      top: Math.max(H * 0.14, 80),
-      bottom: Math.max(H * 0.2, 120),
+    const pad = () => ({
+      left: 36,
+      right: 36,
+      top: Math.max(H * 0.12, 72),
+      bottom: Math.max(H * 0.18, 110),
     });
     const priceToY = (p: number) => {
-      const pad = chartPad();
-      const chartH = H - pad.top - pad.bottom;
+      const pd = pad();
+      const chartH = H - pd.top - pd.bottom;
       const r = Math.max(domainMax - domainMin, 1e-9);
-      return pad.top + (1 - (p - domainMin) / r) * chartH;
+      return pd.top + (1 - (p - domainMin) / r) * chartH;
+    };
+
+    // —— Escalation envelope (continuous build 10s → 30s, with flatline dip). ——
+    const escalationEnv = (t: number): number => {
+      if (t < ESCALATION_START) return 0;
+      const raw = clamp((t - ESCALATION_START) / (TOTAL_DURATION - ESCALATION_START), 0, 1);
+      const power = ESCALATION_POWER * (1 - ESCALATION_DENIAL_STEEPEN * denialNorm);
+      const amp = lerp(ESCALATION_AMP_MIN, ESCALATION_AMP_MAX, denialNorm);
+      let env = raw ** power * amp;
+      if (t >= PHASES.flatline.start && t < PHASES.flatline.end) env *= FLATLINE_DUCK;
+      return env;
     };
 
     // —— Particle helpers ————————————————————————————————————————————————————
@@ -466,250 +595,503 @@ export function TreatmentExperience({
         vx: 0,
         vy: 0,
         life: 1,
-        decay: 0.6,
+        decay: 0.5,
         size: 3,
         color: COLORS.greenParticle,
         rot: 0,
         vrot: 0,
+        gravity: PARTICLE_GRAVITY,
         ...p,
       });
     };
 
-    const fireExplosion = (cx: number, cy: number) => {
-      const m = magnitude;
-      if (EXPLOSION_ELEMENTS.includes("green")) {
-        for (let i = 0; i < EXPLOSION_GREEN * m; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const sp = 120 + Math.random() * 520 * m;
+    const firework = (x: number, y: number, count: number, speed: number, decay: number) => {
+      const rings = 1 + Math.floor(Math.random() * 2);
+      for (let r = 0; r < rings; r++) {
+        const sp = speed * (0.6 + r * 0.35);
+        for (let i = 0; i < count; i++) {
+          const a = (i / count) * Math.PI * 2 + Math.random() * 0.2;
+          const col =
+            Math.random() > 0.82
+              ? COLORS.purpleSoft
+              : Math.random() > 0.5
+                ? COLORS.greenBright
+                : COLORS.greenParticle;
           spawn({
-            x: cx,
-            y: cy,
+            x,
+            y,
             type: "green",
             vx: Math.cos(a) * sp,
-            vy: Math.sin(a) * sp - 120,
-            size: 2 + Math.random() * 4,
-            decay: 0.35 + Math.random() * 0.3,
-            color: Math.random() > 0.5 ? COLORS.green : COLORS.greenBright,
+            vy: Math.sin(a) * sp,
+            size: rand(2, 5),
+            decay,
+            color: col,
+            gravity: 30,
           });
         }
       }
-      // Faint purple beneath — infrastructure, not celebration.
+    };
+
+    const fireExplosion = () => {
+      const m = magnitude;
+      const cx = W * 0.5;
+      const cy = H * 0.42;
+      // Multiple radial rings across the viewport.
+      for (let r = 0; r < EXPLOSION_RINGS; r++) {
+        firework(
+          rand(W * 0.2, W * 0.8),
+          rand(H * 0.2, H * 0.6),
+          Math.round(40 * m),
+          EXPLOSION_SPEED * rand(0.7, 1.2),
+          EXPLOSION_DECAY,
+        );
+      }
+      // Dense green core burst.
+      for (let i = 0; i < EXPLOSION_GREEN * m; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = rand(40, EXPLOSION_SPEED) * (0.5 + Math.random());
+        spawn({
+          x: cx,
+          y: cy,
+          type: "green",
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 60,
+          size: rand(EXPLOSION_GREEN_SIZE[0], EXPLOSION_GREEN_SIZE[1]),
+          decay: EXPLOSION_DECAY * rand(0.8, 1.4),
+          color: Math.random() > 0.5 ? COLORS.greenBright : COLORS.green,
+          gravity: 20,
+        });
+      }
+      // Confetti.
+      for (let i = 0; i < EXPLOSION_CONFETTI * m; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = rand(60, EXPLOSION_SPEED);
+        spawn({
+          x: cx,
+          y: cy,
+          type: "confetti",
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 80,
+          size: rand(EXPLOSION_CONFETTI_SIZE[0], EXPLOSION_CONFETTI_SIZE[1]),
+          decay: EXPLOSION_DECAY * rand(1, 1.6),
+          color: COLORS.confetti[i % COLORS.confetti.length],
+          rot: Math.random() * Math.PI,
+          vrot: rand(-2, 2),
+          gravity: 90,
+        });
+      }
+      // Floating clinical checkmarks.
+      for (let i = 0; i < EXPLOSION_CHECKMARKS * m; i++) {
+        spawn({
+          x: rand(W * 0.1, W * 0.9),
+          y: rand(H * 0.2, H * 0.7),
+          type: "checkmark",
+          vx: rand(-30, 30),
+          vy: rand(-70, -20),
+          size: rand(20, 40),
+          decay: EXPLOSION_DECAY * 0.8,
+          color: COLORS.checkmark,
+          rot: rand(-0.3, 0.3),
+          vrot: rand(-0.5, 0.5),
+          gravity: -8,
+        });
+      }
+      // Raining discharge case-files.
+      for (let i = 0; i < EXPLOSION_CASEFILES * m; i++) {
+        spawn({
+          x: rand(0, W),
+          y: rand(-260, -20),
+          type: "casefile",
+          vx: rand(-20, 20),
+          vy: rand(30, 90),
+          size: rand(30, 50),
+          decay: 0.1,
+          color: COLORS.casefile,
+          rot: rand(-0.5, 0.5),
+          vrot: rand(-0.7, 0.7),
+          gravity: CASEFILE_FALL,
+        });
+      }
+      // Faint purple beneath — infrastructure persists, not celebration.
       for (let i = 0; i < EXPLOSION_PURPLE * m; i++) {
         const a = Math.random() * Math.PI * 2;
-        const sp = 60 + Math.random() * 240 * m;
+        const sp = rand(30, 200);
         spawn({
           x: cx,
           y: cy,
           type: "purple",
           vx: Math.cos(a) * sp,
           vy: Math.sin(a) * sp,
-          size: 1.5 + Math.random() * 2,
-          decay: 0.4,
+          size: rand(1.5, 3.5),
+          decay: EXPLOSION_DECAY * 1.2,
           color: COLORS.purpleSoft,
+          gravity: 10,
         });
-      }
-      if (EXPLOSION_ELEMENTS.includes("checkmark")) {
-        for (let i = 0; i < EXPLOSION_CHECKMARKS * m; i++) {
-          spawn({
-            x: cx + (Math.random() - 0.5) * W * 0.5,
-            y: cy - Math.random() * 40,
-            type: "checkmark",
-            vx: (Math.random() - 0.5) * 60,
-            vy: -40 - Math.random() * 120,
-            size: 16 + Math.random() * 18,
-            decay: 0.28,
-            color: COLORS.checkmark,
-            rot: (Math.random() - 0.5) * 0.4,
-            vrot: (Math.random() - 0.5) * 0.6,
-          });
-        }
-      }
-      if (EXPLOSION_ELEMENTS.includes("casefile")) {
-        for (let i = 0; i < EXPLOSION_CASEFILES * m; i++) {
-          spawn({
-            x: Math.random() * W,
-            y: -40 - Math.random() * 200,
-            type: "casefile",
-            vx: (Math.random() - 0.5) * 30,
-            vy: 40 + Math.random() * 80,
-            size: 26 + Math.random() * 14,
-            decay: 0.14,
-            color: COLORS.casefile,
-            rot: (Math.random() - 0.5) * 0.5,
-            vrot: (Math.random() - 0.5) * 0.8,
-          });
-        }
-      }
-      if (EXPLOSION_ELEMENTS.includes("confetti")) {
-        for (let i = 0; i < EXPLOSION_CONFETTI * m; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const sp = 100 + Math.random() * 400 * m;
-          spawn({
-            x: cx,
-            y: cy,
-            type: "confetti",
-            vx: Math.cos(a) * sp,
-            vy: Math.sin(a) * sp - 80,
-            size: 3 + Math.random() * 5,
-            decay: 0.3,
-            color: COLORS.confetti[i % COLORS.confetti.length],
-            rot: Math.random() * Math.PI,
-            vrot: (Math.random() - 0.5) * 1.4,
-          });
-        }
       }
     };
 
-    // —— Drawing ——————————————————————————————————————————————————————————————
-    const drawCandles = (t: number) => {
-      const pad = chartPad();
-      const chartW = W - pad.left - pad.right;
-      const front = frontProgress(t);
-      const slotW = chartW / n;
-      const bodyW = Math.max(slotW * (1 - CANDLE_GAP_RATIO), 1);
-      const m = magnitude;
+    // —— Drawing —————————————————————————————————————————————————————————————
+    const drawCandleBody = (
+      x: number,
+      bodyW: number,
+      yO: number,
+      yC: number,
+      yH: number,
+      yL: number,
+      fill: string,
+      wickCol: string,
+      glow: number,
+    ) => {
+      ctx.strokeStyle = wickCol;
+      ctx.lineWidth = Math.max(bodyW * 0.14, 1);
+      ctx.beginPath();
+      ctx.moveTo(x, yH);
+      ctx.lineTo(x, yL);
+      ctx.stroke();
+      const top = Math.min(yO, yC);
+      const bh = Math.max(Math.abs(yC - yO), CANDLE_MIN_BODY_PX);
+      if (glow > 0) {
+        ctx.shadowColor = COLORS.greenGlow;
+        ctx.shadowBlur = glow;
+      }
+      ctx.fillStyle = fill;
+      ctx.fillRect(x - bodyW / 2, top, bodyW, bh);
+      ctx.shadowBlur = 0;
+    };
 
-      // Target domain from currently-treated highs (drives the rescale/climb).
-      let targetHigh = baseMax;
-      for (const c of work) {
-        const treated = c.cx <= front;
-        if (!treated) continue;
-        const heal = clamp((front - c.cx) / TREAT_FADE, 0, 1);
-        const lift = CLIMB_HEIGHT * m * c.cx * heal * baseRange;
-        targetHigh = Math.max(targetHigh, c.h + lift);
+    const drawGrid = (fade: number) => {
+      if (fade <= 0.01) return;
+      const pd = pad();
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = COLORS.gridLine;
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= GRID_LINES; i++) {
+        const y = pd.top + (i / GRID_LINES) * (H - pd.top - pd.bottom);
+        ctx.beginPath();
+        ctx.moveTo(pd.left, y);
+        ctx.lineTo(W - pd.right, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    // —— Main loop ————————————————————————————————————————————————————————————
+    let raf = 0;
+    let startMs = 0;
+    let prevMs = 0;
+    let beatEnv = 0;
+    let doneFired = false;
+
+    const setCaption = (text: string) => {
+      if (captionRef.current) captionRef.current.textContent = text;
+    };
+
+    const drawPurpleField = (t: number, envFade: number) => {
+      const pd = pad();
+      const chartW = W - pd.left - pd.right;
+      const passes: number[] = [];
+      if (t >= PHASES.purplePrep.start && t < PHASES.onset.start)
+        passes.push(((t - PHASES.purplePrep.start) * SCANLINE_SPEED) % 1);
+      if (t >= PHASES.onset.start && t < PHASES.escalation.start)
+        passes.push(((t - PHASES.onset.start) * SCANLINE_SPEED) % 1);
+      for (const sp of passes) {
+        const sx = pd.left + sp * chartW;
+        const g = ctx.createLinearGradient(sx - SCANLINE_GLOW_PX, 0, sx + SCANLINE_GLOW_PX, 0);
+        g.addColorStop(0, "rgba(131,110,249,0)");
+        g.addColorStop(0.5, "rgba(131,110,249,0.5)");
+        g.addColorStop(1, "rgba(131,110,249,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(sx - SCANLINE_GLOW_PX, 0, SCANLINE_GLOW_PX * 2, H);
+        ctx.fillStyle = COLORS.purple;
+        ctx.fillRect(sx - SCANLINE_WIDTH_PX / 2, 0, SCANLINE_WIDTH_PX, H);
+      }
+      // Processing waveform(s) — several run in parallel during escalation.
+      const phase = phaseAt(t);
+      const waveCount = phase === "escalation" || phase === "peak" ? WAVEFORM_COUNT_PEAK : 1;
+      if (envFade > 0.01) {
+        ctx.globalAlpha = 0.16 * envFade;
+        ctx.strokeStyle = COLORS.purpleSoft;
+        ctx.lineWidth = 1.5;
+        for (let w = 0; w < waveCount; w++) {
+          const yBase = pd.top + ((w + 1) / (waveCount + 1)) * (H - pd.top - pd.bottom);
+          const speed = 2 + w * 0.7;
+          ctx.beginPath();
+          for (let px = pd.left; px <= W - pd.right; px += 6) {
+            const k = (px - pd.left) / chartW;
+            const y =
+              yBase +
+              Math.sin(k * 22 + t * speed + w * 1.7) * WAVEFORM_AMPLITUDE +
+              Math.sin(k * 7 - t * 1.5) * WAVEFORM_AMPLITUDE * 0.4;
+            if (px === pd.left) ctx.moveTo(px, y);
+            else ctx.lineTo(px, y);
+          }
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+    };
+
+    const drawEcg = (t: number) => {
+      const stripY = H - Math.max(H * 0.08, 48);
+      const stripH = 34;
+      const maxSamples = Math.floor(W);
+      ecg.push(phaseAt(t) === "flatline" ? 0 : beatEnv);
+      if (ecg.length > maxSamples) ecg = ecg.slice(ecg.length - maxSamples);
+      ctx.strokeStyle = phaseAt(t) === "flatline" ? COLORS.purpleSoft : COLORS.greenBright;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < ecg.length; i++) {
+        const x = W - ecg.length + i;
+        const y = stripY - ecg[i] * stripH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+
+    const frame = (nowMs: number) => {
+      if (!startMs) {
+        startMs = nowMs;
+        prevMs = nowMs;
+      }
+      const t = (nowMs - startMs) / 1000;
+      const dt = Math.min((nowMs - prevMs) / 1000, 0.05);
+      prevMs = nowMs;
+      const phase = phaseAt(t);
+      const env = escalationEnv(t);
+
+      // —— Background: reality mood → clinical dark. ——————————————————————————
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = REALITY_BG;
+      ctx.fillRect(0, 0, W, H);
+      const clinicalMix = clamp((t - CLINICAL_FADE.start) / CLINICAL_FADE.dur, 0, 1);
+      if (clinicalMix > 0) {
+        ctx.globalAlpha = clinicalMix;
+        ctx.fillStyle = TREATMENT_BG;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
       }
 
-      for (let i = 0; i < work.length; i++) {
-        const c = work[i];
-        const x = pad.left + i * slotW + slotW / 2;
+      // Grid (continuity) fades as treatment takes over.
+      drawGrid(clamp(1 - frontProgress(t) * 1.4, 0, 1) * 0.9);
+
+      // Purple infrastructure. Recedes after PURPLE_FADE_START.
+      const purpleFade =
+        t < PHASES.purplePrep.start
+          ? 0
+          : t < PURPLE_FADE_START
+            ? 1
+            : clamp(1 - (t - PURPLE_FADE_START) / 6, 0.1, 1);
+      drawPurpleField(t, purpleFade);
+
+      // —— Chart geometry: real candles + revealed banana + god candle. ————————
+      const front = frontProgress(t);
+      const revealF =
+        t < PHASES.escalation.start
+          ? 0
+          : (clamp(
+              (t - PHASES.escalation.start) / (PHASES.peak.end - PHASES.escalation.start),
+              0,
+              1,
+            ) **
+              (1 / APPEND_REVEAL_POWER)) *
+            A;
+      const godActive = phase === "godCandle";
+      const visibleSlots = n + revealF + (godActive ? 1 : 0);
+      const pd = pad();
+      const chartW = W - pd.left - pd.right;
+      const slotW = chartW / Math.max(visibleSlots, 1);
+      const bodyW = Math.max(slotW * (1 - CANDLE_GAP_RATIO), 1);
+
+      // Domain target from every visible candle's (possibly lifted) high.
+      let targetHigh = baseMax;
+      for (const c of real) {
+        const heal = c.cx <= front ? clamp((front - c.cx) / TREAT_FADE, 0, 1) : 0;
+        targetHigh = Math.max(targetHigh, c.h + HEAL_LIFT * magnitude * heal * baseRange);
+      }
+      const revealedCount = Math.floor(revealF);
+      for (let j = 0; j < revealedCount && j < appended.length; j++) {
+        targetHigh = Math.max(targetHigh, appended[j].h);
+      }
+
+      // Rescale toward target — frozen during flatline and once the god candle
+      // passes its freeze point (so it punches off the top).
+      let godFreeze = false;
+      let godProgress = 0;
+      if (godActive) {
+        godProgress =
+          (t - PHASES.godCandle.start) / (PHASES.godCandle.end - PHASES.godCandle.start);
+        godFreeze = godProgress >= GOD_FREEZE_AT;
+      }
+      if (phase !== "flatline" && !godFreeze) {
+        domainMax = lerp(domainMax, targetHigh + baseRange * DOMAIN_HEADROOM, DOMAIN_EASE);
+      }
+
+      // Draw REAL candles (cured L→R).
+      for (let i = 0; i < real.length; i++) {
+        const c = real[i];
+        const x = pd.left + (i + 0.5) * slotW;
         const treated = c.cx <= front;
         const heal = treated ? clamp((front - c.cx) / TREAT_FADE, 0, 1) : 0;
-        const atFront = Math.abs(c.cx - front) < PULSE_WIDTH && t < PHASES.peak.end;
-
-        // Healed candle lifts (climb) and grows a green bullish body.
-        const lift = CLIMB_HEIGHT * m * c.cx * heal * baseRange;
-        const grow = 1 + BODY_GROW * m * heal;
-        const baseBody = Math.abs(c.c - c.o);
+        const atFront = Math.abs(c.cx - front) < PULSE_WIDTH && phase !== "peak" && !godActive;
+        const lift = HEAL_LIFT * magnitude * heal * baseRange;
+        const grow = 1 + BODY_GROW * magnitude * heal;
+        const bodyHalf = (Math.max(Math.abs(c.c - c.o), baseRange * 0.008) * grow) / 2;
         const mid = (c.o + c.c) / 2 + lift;
-        const half = (Math.max(baseBody, baseRange * 0.01) * grow) / 2;
-        const openP = treated ? mid - half : c.o;
-        const closeP = treated ? mid + half : c.c; // treated = bullish (green up)
-        const highP = treated ? Math.max(closeP, c.h + lift) : c.h;
-        const lowP = treated ? Math.min(openP, c.l + lift) : c.l;
+        const oP = treated ? mid - bodyHalf : c.o;
+        const cP = treated ? mid + bodyHalf : c.c;
+        const hP = treated ? Math.max(cP, c.h + lift) : c.h;
+        const lP = treated ? Math.min(oP, c.l + lift) : c.l;
 
-        const yO = priceToY(openP);
-        const yC = priceToY(closeP);
-        const yH = priceToY(highP);
-        const yL = priceToY(lowP);
-
-        // Colour: grey → (purple pulse at front) → green.
-        let fill: string = COLORS.candleGrey;
-        let wick: string = COLORS.wickGrey;
+        let fill: string = c.c >= c.o ? REAL_UP : REAL_DOWN;
+        let wickCol = fill;
         if (atFront) {
           fill = COLORS.purpleStrong;
-          wick = COLORS.purple;
+          wickCol = COLORS.purple;
         } else if (treated) {
           fill = heal > 0.5 ? COLORS.greenBright : COLORS.green;
-          wick = COLORS.green;
+          wickCol = COLORS.green;
         }
+        drawCandleBody(
+          x,
+          bodyW,
+          priceToY(oP),
+          priceToY(cP),
+          priceToY(hP),
+          priceToY(lP),
+          fill,
+          wickCol,
+          treated ? 8 * heal * magnitude : 0,
+        );
 
-        // Wick
-        ctx.strokeStyle = wick;
-        ctx.lineWidth = Math.max(bodyW * 0.14, 1);
-        ctx.beginPath();
-        ctx.moveTo(x, yH);
-        ctx.lineTo(x, yL);
-        ctx.stroke();
-
-        // Body
-        const top = Math.min(yO, yC);
-        const bh = Math.max(Math.abs(yC - yO), CANDLE_MIN_BODY_PX);
-        if (treated && heal > 0.3) {
-          ctx.shadowColor = COLORS.green;
-          ctx.shadowBlur = 10 * heal * m;
+        // Continuous green emission from cured candles (ramps with env).
+        if (!reduce && treated && heal > 0.7 && env > 0 && phase !== "flatline") {
+          const rate = EMIT_RATE_BASE * env * magnitude * 0.05;
+          if (Math.random() < rate) {
+            spawn({
+              x: x + rand(-bodyW / 2, bodyW / 2),
+              y: priceToY(cP),
+              type: "green",
+              vx: rand(-16, 16),
+              vy: -EMIT_SPEED * rand(0.5, 1.2),
+              size: lerp(EMIT_SIZE_MIN, EMIT_SIZE_MAX, clamp(env, 0, 1)) * rand(0.7, 1.2),
+              decay: EMIT_DECAY,
+              color: COLORS.greenParticle,
+            });
+          }
         }
-        ctx.fillStyle = fill;
-        ctx.fillRect(x - bodyW / 2, top, bodyW, bh);
-        ctx.shadowBlur = 0;
+      }
 
-        // Green particles escape completed candles during the climb.
-        if (
-          !reduce &&
-          treated &&
-          heal > 0.8 &&
-          t >= PHASES.escalation.start &&
-          t < PHASES.godCandle.start &&
-          Math.random() < PARTICLE_ESCAPE_RATE * m * 0.12
-        ) {
+      // Draw the revealed banana candles.
+      for (let j = 0; j < appended.length; j++) {
+        if (j >= revealF) break;
+        const a = appended[j];
+        const x = pd.left + (n + j + 0.5) * slotW;
+        const grow = clamp(revealF - j, 0, 1); // frontier candle grows in
+        const mid = (a.o + a.c) / 2;
+        const half = ((a.c - a.o) / 2) * grow;
+        drawCandleBody(
+          x,
+          bodyW,
+          priceToY(mid - half),
+          priceToY(mid + half),
+          priceToY(a.h),
+          priceToY(a.l),
+          COLORS.greenBright,
+          COLORS.green,
+          10 * magnitude,
+        );
+        if (!reduce && env > 0 && Math.random() < EMIT_RATE_BASE * env * magnitude * 0.04) {
           spawn({
-            x: x + (Math.random() - 0.5) * bodyW,
-            y: top,
+            x,
+            y: priceToY(a.c),
             type: "green",
-            vx: (Math.random() - 0.5) * 20,
-            vy: -20 - Math.random() * 40,
-            size: 1.5 + Math.random() * 2,
-            decay: 0.5,
+            vx: rand(-16, 16),
+            vy: -EMIT_SPEED * rand(0.6, 1.4),
+            size: lerp(EMIT_SIZE_MIN, EMIT_SIZE_MAX, clamp(env, 0, 1)),
+            decay: EMIT_DECAY,
             color: COLORS.greenParticle,
           });
         }
       }
 
-      return { targetHigh, pad, chartW, slotW, bodyW };
-    };
+      // God candle — punches off the top.
+      if (godActive) {
+        const stretch = easeOut(clamp(godProgress, 0, 1) ** GOD_STRETCH_POWER);
+        const x = pd.left + (n + A + 0.5) * slotW;
+        const godHigh = domainMax + (domainMax - domainMin) * GOD_CANDLE_MULT * magnitude * stretch;
+        const yTop = priceToY(godHigh); // goes < 0 once the domain freezes
+        const yBase = priceToY(godOpen);
+        const w = bodyW * 1.5;
+        const grad = ctx.createLinearGradient(0, Math.min(yTop, 0), 0, yBase);
+        grad.addColorStop(0, COLORS.greenBright);
+        grad.addColorStop(1, COLORS.green);
+        ctx.shadowColor = COLORS.greenGlow;
+        ctx.shadowBlur = 34;
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - w / 2, yTop, w, yBase - yTop);
+        ctx.shadowBlur = 0;
 
-    const drawGodCandle = (
-      t: number,
-      geom: { pad: ReturnType<typeof chartPad>; slotW: number; bodyW: number },
-    ) => {
-      const gp =
-        (t - PHASES.godCandle.start) /
-        (PHASES.godCandle.end - PHASES.godCandle.start);
-      const stretch = easeOut(clamp(gp, 0, 1) ** GOD_STRETCH_POWER);
-      const x = W - geom.pad.right - geom.slotW * 0.5;
-      const baseTop = domainMax; // launches from the current top of the record
-      const godHigh =
-        baseTop + (domainMax - domainMin) * GOD_CANDLE_MULT * magnitude * stretch;
-
-      const yBase = priceToY(baseMin + baseRange * 0.2);
-      const yTop = priceToY(godHigh); // once the domain freezes, this goes < 0
-
-      const w = geom.bodyW * 1.4;
-      const grad = ctx.createLinearGradient(0, yTop, 0, yBase);
-      grad.addColorStop(0, COLORS.greenBright);
-      grad.addColorStop(1, COLORS.green);
-      ctx.shadowColor = COLORS.greenBright;
-      ctx.shadowBlur = 30;
-      ctx.fillStyle = grad;
-      ctx.fillRect(x - w / 2, yTop, w, yBase - yTop);
-      ctx.shadowBlur = 0;
-
-      // Explosion at the apex of the stretch.
-      if (!explosionFired && gp >= GOD_FREEZE_AT + 0.06) {
-        explosionFired = true;
-        fireExplosion(x, Math.max(yTop, 40));
-        audio.climax();
+        if (!explosionFired && !reduce && godProgress >= GOD_FREEZE_AT + 0.05) {
+          explosionFired = true;
+          fireExplosion();
+          audio.bloom();
+        }
       }
-      return { gp };
-    };
 
-    const drawParticles = (dt: number) => {
+      // Progressive green wash — screen saturates as the cure builds.
+      const wash = clamp(env, 0, 1) * GREEN_SATURATION_MAX;
+      if (wash > 0.005) {
+        ctx.fillStyle = `rgba(34,192,99,${wash})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // —— Continuous fireworks (start sparse ~15s, grow toward the god candle,
+      //    which then takes over with the climax explosion). ————————————————————
+      if (!reduce && t >= FIREWORK_START && t < PHASES.flatline.start) {
+        if (t >= nextFirework + 2) nextFirework = t; // resync after a tab stall
+        while (t >= nextFirework) {
+          const e = clamp(env, 0.05, 1.4);
+          firework(
+            rand(W * 0.15, W * 0.85),
+            rand(H * 0.15, H * 0.6),
+            Math.round(FIREWORK_BURST * clamp(e, 0.2, 1.4) * magnitude * 0.5),
+            FIREWORK_SPEED * rand(0.7, 1.1),
+            FIREWORK_DECAY,
+          );
+          nextFirework += lerp(FIREWORK_INTERVAL_MAX, FIREWORK_INTERVAL_MIN, clamp(e, 0, 1));
+        }
+      }
+
+      // Green screen-flash at the climax (holds, then fades).
+      if (godActive && explosionFired) {
+        const since = t - (PHASES.godCandle.start + (GOD_FREEZE_AT + 0.05) * 2);
+        const flash = clamp(1 - since / GREEN_FLASH_FADE, 0, 1) * GREEN_FLASH_INTENSITY;
+        if (flash > 0.01) {
+          ctx.fillStyle = `rgba(61,255,134,${flash})`;
+          ctx.fillRect(0, 0, W, H);
+        }
+      }
+
+      // —— Particles (drawn LAST, on top of everything). ————————————————————————
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        // casefiles rain DOWN; green/confetti/purple drift up (negative gravity).
-        p.vy += (p.type === "casefile" ? 140 : PARTICLE_GRAVITY) * dt;
-        p.vx *= 0.99;
+        p.vy += p.gravity * dt;
+        p.vx *= 0.992;
         p.rot += p.vrot * dt;
         p.life -= p.decay * dt;
-        if (p.life <= 0 || p.y > H + 60) {
+        if (p.life <= 0 || p.y > H + 80 || p.x < -80 || p.x > W + 80) {
           particles.splice(i, 1);
           continue;
         }
         ctx.globalAlpha = clamp(p.life, 0, 1);
         if (p.type === "checkmark") {
           ctx.strokeStyle = p.color;
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 3;
           ctx.save();
           ctx.translate(p.x, p.y);
           ctx.rotate(p.rot);
@@ -744,251 +1126,83 @@ export function TreatmentExperience({
         }
         ctx.globalAlpha = 1;
       }
-    };
 
-    const drawPurpleField = (t: number) => {
-      const phase = phaseAt(t);
-      const pad = chartPad();
-      const chartW = W - pad.left - pad.right;
-
-      // Scanline passes: one in prep, a second in onset.
-      const passes: number[] = [];
-      if (t >= PHASES.purplePrep.start && t < PHASES.onset.start) {
-        passes.push(((t - PHASES.purplePrep.start) * SCANLINE_SPEED) % 1);
-      }
-      if (t >= PHASES.onset.start && t < PHASES.escalation.start) {
-        passes.push(((t - PHASES.onset.start) * SCANLINE_SPEED) % 1);
-      }
-      for (const sp of passes) {
-        const sx = pad.left + sp * chartW;
-        const g = ctx.createLinearGradient(sx - SCANLINE_GLOW_PX, 0, sx + SCANLINE_GLOW_PX, 0);
-        g.addColorStop(0, "rgba(131,110,249,0)");
-        g.addColorStop(0.5, "rgba(131,110,249,0.5)");
-        g.addColorStop(1, "rgba(131,110,249,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(sx - SCANLINE_GLOW_PX, 0, SCANLINE_GLOW_PX * 2, H);
-        ctx.fillStyle = COLORS.purple;
-        ctx.fillRect(sx - SCANLINE_WIDTH_PX / 2, 0, SCANLINE_WIDTH_PX, H);
-      }
-
-      // Faint purple processing waveform(s) behind the chart. During escalation,
-      // several run in parallel across different sections — purple FLOWS.
-      const waveCount =
-        phase === "escalation" || phase === "peak" ? WAVEFORM_COUNT_PEAK : 1;
-      const purpleFade =
-        phase === "peak"
-          ? 1 - (t - PHASES.peak.start) / (PHASES.peak.end - PHASES.peak.start)
-          : phase === "godCandle" || phase === "flatline"
-            ? 0.12
-            : t >= PHASES.purplePrep.start
-              ? 1
-              : 0;
-      if (purpleFade > 0.01) {
-        ctx.globalAlpha = 0.16 * purpleFade;
-        ctx.strokeStyle = COLORS.purpleSoft;
-        ctx.lineWidth = 1.5;
-        for (let w = 0; w < waveCount; w++) {
-          const yBase = pad.top + ((w + 1) / (waveCount + 1)) * (H - pad.top - pad.bottom);
-          const speed = 2 + w * 0.7;
-          const phaseOff = w * 1.7;
-          ctx.beginPath();
-          for (let px = pad.left; px <= W - pad.right; px += 6) {
-            const k = (px - pad.left) / chartW;
-            const y =
-              yBase +
-              Math.sin(k * 22 + t * speed + phaseOff) * WAVEFORM_AMPLITUDE +
-              Math.sin(k * 7 - t * 1.5) * WAVEFORM_AMPLITUDE * 0.4;
-            if (px === pad.left) ctx.moveTo(px, y);
-            else ctx.lineTo(px, y);
-          }
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-      }
-    };
-
-    const drawEcg = (t: number, beatEnv: number) => {
-      const stripY = H - Math.max(H * 0.09, 56);
-      const stripH = 36;
-      // scroll buffer
-      const maxSamples = Math.floor(W);
-      ecg.push(phaseAt(t) === "flatline" ? 0 : beatEnv);
-      if (ecg.length > maxSamples) ecg = ecg.slice(ecg.length - maxSamples);
-      ctx.strokeStyle =
-        phaseAt(t) === "flatline" ? COLORS.purpleSoft : COLORS.greenBright;
-      ctx.globalAlpha = 0.7;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (let i = 0; i < ecg.length; i++) {
-        const x = W - ecg.length + i;
-        const y = stripY - ecg[i] * stripH;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    };
-
-    // —— Main loop ————————————————————————————————————————————————————————————
-    let raf = 0;
-    let startMs = 0;
-    let prevMs = 0;
-    let beatEnv = 0;
-    let doneFired = false;
-
-    const setCaption = (text: string) => {
-      if (captionRef.current) captionRef.current.textContent = text;
-    };
-
-    const frame = (nowMs: number) => {
-      if (!startMs) {
-        startMs = nowMs;
-        prevMs = nowMs;
-      }
-      const t = (nowMs - startMs) / 1000;
-      const dt = Math.min((nowMs - prevMs) / 1000, 0.05);
-      prevMs = nowMs;
-      const phase = phaseAt(t);
-
-      // Background + ambient dim.
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = COLORS.bg;
-      ctx.fillRect(0, 0, W, H);
-
-      const dim =
-        phase === "diagnosisComplete"
-          ? SCREEN_DIM_AMOUNT
-          : lerp(SCREEN_DIM_AMOUNT, SCREEN_DIM_RECOVER, clamp((t - 2) / 3, 0, 1));
-      if (dim > 0.001) {
-        ctx.fillStyle = `rgba(0,0,0,${dim})`;
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      // Purple field behind the chart.
-      drawPurpleField(t);
-
-      // Candles + domain rescale (skip lift-freeze during flatline).
-      const frozen = phase === "flatline";
-      const geom = drawCandles(t);
-
-      // God candle.
-      let godFreeze = false;
-      if (phase === "godCandle") {
-        const { gp } = drawGodCandle(t, geom);
-        godFreeze = gp >= GOD_FREEZE_AT;
-      }
-
-      // Rescale the domain toward the target — but FREEZE once the god candle
-      // passes the freeze point, so it punches off the top (the joke).
-      if (!frozen && !godFreeze) {
-        const targetMax = geom.targetHigh + baseRange * DOMAIN_HEADROOM;
-        domainMax = lerp(domainMax, targetMax, DOMAIN_EASE);
-      }
-
-      // Green screen flash at the climax.
-      if (phase === "godCandle" && explosionFired) {
-        const since = t - (PHASES.godCandle.start + (GOD_FREEZE_AT + 0.06) * 2);
-        const flash = clamp(1 - since / 1.4, 0, 1) * GREEN_FLASH_INTENSITY;
-        if (flash > 0.01) {
-          ctx.fillStyle = `rgba(44,229,107,${flash})`;
-          ctx.fillRect(0, 0, W, H);
-        }
-      }
-
-      // Particles.
-      drawParticles(dt);
-
-      // Heartbeat envelope for the ECG (decays every frame, spikes on a beat).
+      // —— Audio scheduling. ————————————————————————————————————————————————————
       beatEnv *= 0.86;
-
-      // —— Audio scheduling (heartbeat / blips / swell / flatline). ————————————
       const bpm = bpmAt(t);
       if (bpmRef.current) bpmRef.current.textContent = `${Math.round(bpm)}`;
       if (!reduce) {
         if (phase === "flatline") {
           audio.flatline(true);
-          audio.setSwell(0);
         } else {
           audio.flatline(false);
           if (t >= nextBeat) {
-            audio.beat(phase === "diagnosisComplete");
+            audio.beat(phase === "realityHold");
             beatEnv = 1;
             nextBeat = t + 60 / bpm;
           }
-          // Processing blips during the purple phases.
-          if (
-            (phase === "purplePrep" || phase === "onset") &&
-            t >= nextBlip
-          ) {
+          if ((phase === "purplePrep" || phase === "onset") && t >= nextBlip) {
             audio.blip();
             nextBlip = t + 0.32 + Math.random() * 0.25;
           }
-          // Sub-bass swell builds through escalation → peak.
-          const swell =
-            phase === "escalation" || phase === "peak"
-              ? clamp((t - PHASES.escalation.start) / 12, 0, 1)
-              : phase === "godCandle"
-                ? 1
-                : 0;
-          audio.setSwell(swell);
+          audio.setEscalation(clamp(env, 0, 1));
         }
       } else if (t >= nextBeat && phase !== "flatline") {
-        // reduced-motion never plays audio, but we still keep the ECG alive.
         beatEnv = 1;
         nextBeat = t + 60 / bpm;
       }
 
-      // ECG monitor strip.
-      drawEcg(t, beatEnv);
+      drawEcg(t);
 
-      // Caption + phase transitions.
       if (phase !== lastPhase) {
         lastPhase = phase;
         setCaption(CAPTIONS[phase]);
       }
 
       if (t >= TOTAL_DURATION) {
-        // Hold the triumphant final frame; let particles settle, then idle.
         if (!doneFired) {
           doneFired = true;
           setDone(true);
         }
-        if (particles.length === 0) return; // final frame held; stop the loop
+        if (particles.length === 0) return; // hold the final frame; stop the loop
       }
       raf = requestAnimationFrame(frame);
     };
 
-    // —— Reduced-motion calm path: resolve gently to the green end-state. ———————
+    // —— Reduced-motion: resolve gently to the green end-state. ————————————————
     const renderCalmEndState = () => {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = COLORS.bg;
+      ctx.fillStyle = TREATMENT_BG;
       ctx.fillRect(0, 0, W, H);
-      const pad = chartPad();
-      const chartW = W - pad.left - pad.right;
-      const slotW = chartW / n;
+      const pd = pad();
+      const chartW = W - pd.left - pd.right;
+      const total = n + A;
+      const slotW = chartW / total;
       const bodyW = Math.max(slotW * (1 - CANDLE_GAP_RATIO), 1);
-      // A calm, fully-treated green record — no motion, no flash, no audio.
-      const calmMax = baseMax + baseRange * (CLIMB_HEIGHT + DOMAIN_HEADROOM);
-      const calmMin = baseMin - baseRange * 0.05;
+      const calmMax = Math.max(baseMax, lastRealClose + bananaRise) + baseRange * DOMAIN_HEADROOM;
+      const calmMin = baseMin - baseRange * 0.06;
       const yOf = (p: number) =>
-        pad.top +
-        (1 - (p - calmMin) / Math.max(calmMax - calmMin, 1e-9)) *
-          (H - pad.top - pad.bottom);
-      for (let i = 0; i < work.length; i++) {
-        const c = work[i];
-        const x = pad.left + i * slotW + slotW / 2;
-        const lift = CLIMB_HEIGHT * c.cx * baseRange;
-        const half = Math.max(Math.abs(c.c - c.o), baseRange * 0.02) / 2;
-        const mid = (c.o + c.c) / 2 + lift;
+        pd.top + (1 - (p - calmMin) / Math.max(calmMax - calmMin, 1e-9)) * (H - pd.top - pd.bottom);
+      const drawOne = (idx: number, o: number, c: number, h: number, l: number) => {
+        const x = pd.left + (idx + 0.5) * slotW;
         ctx.strokeStyle = COLORS.green;
         ctx.lineWidth = Math.max(bodyW * 0.14, 1);
         ctx.beginPath();
-        ctx.moveTo(x, yOf(mid + half + baseRange * 0.03));
-        ctx.lineTo(x, yOf(mid - half - baseRange * 0.03));
+        ctx.moveTo(x, yOf(h));
+        ctx.lineTo(x, yOf(l));
         ctx.stroke();
         ctx.fillStyle = COLORS.greenBright;
-        const top = yOf(mid + half);
-        ctx.fillRect(x - bodyW / 2, top, bodyW, Math.max(yOf(mid - half) - top, CANDLE_MIN_BODY_PX));
+        const top = yOf(Math.max(o, c));
+        ctx.fillRect(x - bodyW / 2, top, bodyW, Math.max(yOf(Math.min(o, c)) - top, CANDLE_MIN_BODY_PX));
+      };
+      for (let i = 0; i < real.length; i++) {
+        const c = real[i];
+        const half = Math.max(Math.abs(c.c - c.o), baseRange * 0.02) / 2;
+        const mid = (c.o + c.c) / 2 + HEAL_LIFT * baseRange;
+        drawOne(i, mid - half, mid + half, mid + half + baseRange * 0.02, mid - half - baseRange * 0.02);
+      }
+      for (let j = 0; j < appended.length; j++) {
+        drawOne(n + j, appended[j].o, appended[j].c, appended[j].h, appended[j].l);
       }
       setCaption(CAPTIONS.godCandle);
       if (bpmRef.current) bpmRef.current.textContent = "—";
@@ -996,7 +1210,6 @@ export function TreatmentExperience({
     };
 
     if (reduce) {
-      // Defer past the effect body so we never setState synchronously on mount.
       const rafCalm = requestAnimationFrame(renderCalmEndState);
       window.addEventListener("resize", renderCalmEndState);
       return () => {
@@ -1008,7 +1221,7 @@ export function TreatmentExperience({
       };
     }
 
-    setCaption(CAPTIONS.diagnosisComplete);
+    setCaption(CAPTIONS.realityHold);
     raf = requestAnimationFrame(frame);
 
     return () => {
@@ -1024,7 +1237,7 @@ export function TreatmentExperience({
     <div className="fixed inset-0 overflow-hidden bg-[#0b100e] text-[#e6f1ea]">
       <canvas ref={canvasRef} className="absolute inset-0" />
 
-      {/* TREATED VIEW — the real-vs-fiction invariant, always present. */}
+      {/* TREATED VIEW — real-vs-fiction invariant, always present. */}
       <div className="pointer-events-none absolute left-5 top-5 flex items-center gap-2">
         <span className="readout rounded-md border border-[#2ce56b]/40 bg-[#0b100e]/70 px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[#2ce56b]">
           Treated View
@@ -1042,7 +1255,7 @@ export function TreatmentExperience({
         </span>
       </div>
 
-      {/* Mute control (visible; first tap also unlocks audio if autoplay blocked). */}
+      {/* Mute control (first tap also unlocks audio if autoplay was blocked). */}
       <button
         type="button"
         onClick={() => setMuted((m) => !m)}
@@ -1057,11 +1270,10 @@ export function TreatmentExperience({
           ref={captionRef}
           className="readout text-center text-sm font-medium tracking-wide text-[#e6f1ea] sm:text-base"
         >
-          {CAPTIONS.diagnosisComplete}
+          {CAPTIONS.realityHold}
         </p>
       </div>
 
-      {/* Held end-state affordance appears once treatment completes. */}
       {done && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
           <span className="readout rounded-full border border-[#2ce56b]/30 bg-[#0b100e]/60 px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.24em] text-[#2ce56b]">
