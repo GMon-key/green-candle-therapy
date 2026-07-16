@@ -25,6 +25,12 @@ export interface FlowState {
   asset?: { id: string; name: string; symbol: string };
   /** Cached OHLC so reality can render instantly without a second fetch. */
   candles?: Candle[];
+  /**
+   * The clinic's Reality Acceptance estimate (%) computed from the answers at
+   * beat 3. Persisted so beat 5 shows the SAME number for the session — it is a
+   * read on the patient, never derived from market data.
+   */
+  realityAcceptance?: number;
 }
 
 const KEY = "gct.flow";

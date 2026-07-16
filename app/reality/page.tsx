@@ -7,7 +7,7 @@ import { BeatShell } from "@/components/BeatShell";
 import { Processing } from "@/components/motion/Processing";
 import { TypeLine } from "@/components/motion/TypeLine";
 import { RealityChart } from "@/components/RealityChart";
-import { ATTENDING_CLINICIAN, ROUTES } from "@/lib/assessment";
+import { ATTENDING_CLINICIAN, deriveDenial, ROUTES } from "@/lib/assessment";
 import {
   type Candle,
   classifyRegime,
@@ -33,7 +33,13 @@ type State =
   | { kind: "loading" }
   | { kind: "empty" }
   | { kind: "error"; message: string }
-  | { kind: "data"; candles: Candle[]; asset?: Asset; market?: Market };
+  | {
+      kind: "data";
+      candles: Candle[];
+      asset?: Asset;
+      market?: Market;
+      realityAcceptance?: number;
+    };
 
 const STEPS = [
   "Pulling 30-day history",
@@ -52,12 +58,20 @@ export default function RealityPage() {
     // effect); sessionStorage can only be read on the client anyway.
     const raf = requestAnimationFrame(() => {
       const flow = getFlow();
+      // Beat 3 persists the estimate; if it's somehow absent (storage cleared),
+      // recompute it from the same answers so the two beats never disagree.
+      const acceptance =
+        flow.realityAcceptance ??
+        (flow.market
+          ? deriveDenial(flow.market, flow.answers)?.realityAcceptance
+          : undefined);
       if (flow.candles?.length) {
         setState({
           kind: "data",
           candles: flow.candles,
           asset: flow.asset,
           market: flow.market,
+          realityAcceptance: acceptance,
         });
         return;
       }
@@ -79,6 +93,7 @@ export default function RealityPage() {
                 candles: data.candles,
                 asset: flow.asset,
                 market: flow.market,
+                realityAcceptance: acceptance,
               });
             } else {
               setState({
@@ -130,6 +145,7 @@ export default function RealityPage() {
             candles={state.candles}
             asset={state.asset}
             market={state.market}
+            realityAcceptance={state.realityAcceptance}
             revealed={revealed}
             onRevealed={() => setRevealed(true)}
           />
@@ -159,12 +175,14 @@ function DataView({
   candles,
   asset,
   market,
+  realityAcceptance,
   revealed,
   onRevealed,
 }: {
   candles: Candle[];
   asset?: Asset;
   market?: Market;
+  realityAcceptance?: number;
   revealed: boolean;
   onRevealed: () => void;
 }) {
@@ -262,25 +280,28 @@ function DataView({
       {/* Treatment-assessment reading — an IN-WORLD clinical estimate, NOT a
           market vital. It lives in its own labelled slot, well away from the
           real-data grid above, so a careful reader never mistakes it for a
-          CoinGecko-derived figure. Exactly one such absurd metric by design. */}
-      <div>
-        <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
-          Treatment assessment · clinical estimate
-        </span>
-        <div className="mt-4 max-w-xs rounded-xl border border-dashed border-clinic-line bg-clinic-surface px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="readout text-[0.65rem] uppercase tracking-[0.16em] text-clinic-muted">
-              Reality Acceptance
-            </span>
-            <span className="readout text-lg font-semibold tabular-nums text-clinic-fg">
-              12%
-            </span>
+          CoinGecko-derived figure. The value is the SAME Reality Acceptance the
+          clinic computed at beat 3, carried through the session. */}
+      {realityAcceptance != null && (
+        <div>
+          <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
+            Treatment assessment · clinical estimate
+          </span>
+          <div className="mt-4 max-w-xs rounded-xl border border-dashed border-clinic-line bg-clinic-surface px-4 py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="readout text-[0.65rem] uppercase tracking-[0.16em] text-clinic-muted">
+                Reality Acceptance
+              </span>
+              <span className="readout text-lg font-semibold tabular-nums text-clinic-fg">
+                {realityAcceptance}%
+              </span>
+            </div>
+            <p className="mt-1 text-[0.65rem] leading-relaxed text-clinic-muted">
+              Clinician&rsquo;s estimate. Not measured from market data.
+            </p>
           </div>
-          <p className="mt-1 text-[0.65rem] leading-relaxed text-clinic-muted">
-            Clinician&rsquo;s estimate. Not measured from market data.
-          </p>
         </div>
-      </div>
+      )}
 
       {/* Admit patient — beat 6 (treatment) ships separately (see report). */}
       <div className="mt-2 border-t border-clinic-line pt-6">

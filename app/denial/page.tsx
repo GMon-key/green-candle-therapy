@@ -15,13 +15,13 @@ import {
   ROUTES,
   SECONDARY_REFERENCE,
 } from "@/lib/assessment";
-import { getFlow, type Market } from "@/lib/flow";
+import { getFlow, type Market, patchFlow } from "@/lib/flow";
 
 /**
  * Beat 3 — Diagnosis of denial. Whatever the patient answered, the clinic
  * arrives at the same conclusion; only the phrasing is route-specific. The
- * preliminary finding (headline / supporting / route framing) is read from the
- * shared assessment engine so it matches the route chosen at Q1. Amber theme.
+ * preliminary finding (headline / supporting) is read from the shared
+ * assessment engine so it matches the route chosen at Q1. Amber theme.
  *
  * The assessment is mandatory, so a market is always on file — arriving here
  * without one means the flow was skipped, and we send the patient back to it.
@@ -86,6 +86,8 @@ export default function DenialPage() {
       }
       setMarket(m);
       setDerived(d);
+      // Persist the estimate so beat 5 shows the SAME number this session.
+      patchFlow({ realityAcceptance: d.realityAcceptance });
     });
     return () => cancelAnimationFrame(raf);
   }, [router]);
@@ -134,13 +136,6 @@ export default function DenialPage() {
 
         <p className="gct-rise mt-6 max-w-xl leading-relaxed text-clinic-muted" style={{ animationDelay: "500ms" }}>
           {finding.supporting}
-        </p>
-
-        <p
-          className="gct-rise mt-4 max-w-xl text-sm font-medium leading-relaxed text-clinic-fg"
-          style={{ animationDelay: "640ms" }}
-        >
-          {finding.routeFraming}
         </p>
 
         {/* Individualised clinical diagnosis — assembled by rule from the
