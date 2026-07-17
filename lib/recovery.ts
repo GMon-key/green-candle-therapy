@@ -4,6 +4,7 @@ import {
   SECONDARY_REFERENCE,
 } from "./assessment";
 import type { FlowState, Market } from "./flow";
+import { shortLabelFor } from "./symptomLabels";
 
 /**
  * Beat 7 derivations — the discharge summary, the share card, and the X post.
@@ -71,6 +72,12 @@ export interface RecoveryData {
   secondaryReference: string;
   /** The two individualised micro-diagnoses (Q2, Q3 clauses), verbatim. */
   microDiagnoses: [string, string];
+  /**
+   * The SHORT symptom labels (Q2, Q3) — terse condensations used ONLY in the X
+   * post, where the full clauses would exceed X's 280-char prefill limit. Same
+   * selected options as `microDiagnoses`, so the two stay individualised in step.
+   */
+  microLabels: [string, string];
   /** Persisted Reality Acceptance (%). */
   realityAcceptance: number;
   /** Recovery index in CU (the Cope Units reveal). */
@@ -97,6 +104,11 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
   const patientName = asset.name.toUpperCase();
   const symbol = asset.symbol.toUpperCase();
 
+  // The selected Q2/Q3 answers (validated non-null by deriveDenial above) — the
+  // short tweet labels key off the exact same answers as the full clauses.
+  const route = ROUTES[market];
+  const a = answers ?? {};
+
   return {
     patientName,
     symbol,
@@ -107,6 +119,7 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
     // sentences = [stem, Q2 clause, Q3 clause, closer]; the Q2/Q3 clauses are
     // the two micro-diagnoses shown on the denial screen, carried verbatim.
     microDiagnoses: [denial.sentences[1], denial.sentences[2]],
+    microLabels: [shortLabelFor(a[route.q2.id]), shortLabelFor(a[route.q3.id])],
     realityAcceptance: ra,
     recoveryCU: recoveryIndexCU(ra),
   };
@@ -119,17 +132,22 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
  * No hashtags. The template is fixed; only the slots vary.
  * ========================================================================== */
 
-/** The exact pre-filled X post text (pre-encoding). Newlines are literal "\n". */
+/**
+ * The exact pre-filled X post text (pre-encoding). Newlines are literal "\n".
+ * Uses the SHORT symptom labels (not the full clauses) so every path stays
+ * under X's 280-char prefill limit while remaining individualised. The full
+ * clauses live on the card image, which is the primary shared artifact.
+ */
 export function buildShareText(data: RecoveryData): string {
   return [
     "🩺 Green Candle Therapy — Discharge Summary",
     "",
     "Treated for:",
-    `· ${data.microDiagnoses[0]}`,
-    `· ${data.microDiagnoses[1]}`,
+    `· ${data.microLabels[0]}`,
+    `· ${data.microLabels[1]}`,
     "",
     `Reality Acceptance: ${data.realityAcceptance}%.`,
-    "The chart has been treated. The market remains unchanged.",
+    "The market remains unchanged.",
     "",
     "Thanks @MonkeHQ, I now feel better 🍌",
     "",
@@ -137,7 +155,13 @@ export function buildShareText(data: RecoveryData): string {
   ].join("\n");
 }
 
-/** The X compose URL with the post text URL-encoded into the `text` param. */
+/**
+ * The X compose URL with the post text URL-encoded into the `text` param.
+ * Uses x.com/intent/tweet — the current canonical endpoint (per docs.x.com).
+ * twitter.com/intent/tweet 301-redirects here (query preserved); we target
+ * x.com directly to avoid the cross-domain hop. NOT /intent/post, which has a
+ * reported "opens login page instead of composer" bug.
+ */
 export function buildShareIntentUrl(data: RecoveryData): string {
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(buildShareText(data))}`;
+  return `https://x.com/intent/tweet?text=${encodeURIComponent(buildShareText(data))}`;
 }

@@ -84,11 +84,10 @@ export default function RecoveryPage() {
 
   function handleShare() {
     if (!data) return;
-    window.open(
-      buildShareIntentUrl(data),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    const url = buildShareIntentUrl(data);
+    // Surface the exact URL opened (query attached) for the live walk / debug.
+    console.info("[share-on-x] opening:", url);
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (!data) {

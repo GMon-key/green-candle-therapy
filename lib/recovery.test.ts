@@ -116,23 +116,30 @@ describe("buildShareText", () => {
   const data = deriveRecovery(bullFlow())!;
   const text = buildShareText(data);
 
-  it("follows the exact template with the slots filled", () => {
+  it("follows the exact template with the SHORT labels filled in", () => {
     expect(text).toBe(
       [
         "🩺 Green Candle Therapy — Discharge Summary",
         "",
         "Treated for:",
-        `· ${data.microDiagnoses[0]}`,
-        `· ${data.microDiagnoses[1]}`,
+        "· Decline reframed as consolidation",
+        "· Unrevised multi-cycle conviction",
         "",
         "Reality Acceptance: 40%.",
-        "The chart has been treated. The market remains unchanged.",
+        "The market remains unchanged.",
         "",
         "Thanks @MonkeHQ, I now feel better 🍌",
         "",
         RECOVERY_SHARE_URL,
       ].join("\n"),
     );
+  });
+
+  it("uses the short labels, not the full clauses", () => {
+    expect(text).toContain(data.microLabels[0]);
+    expect(text).toContain(data.microLabels[1]);
+    expect(text).not.toContain(data.microDiagnoses[0]);
+    expect(text).not.toContain(data.microDiagnoses[1]);
   });
 
   it("is anti-spam compliant: 2 emoji, 1 mention, 1 link, no hashtags", () => {
@@ -142,14 +149,41 @@ describe("buildShareText", () => {
     expect(text.match(/https?:\/\//g)?.length).toBe(1);
     expect(text).not.toContain("#");
   });
+
+  it("stays under X's 280-char prefill limit on ALL 48 paths", () => {
+    // X-weighted length: the URL is shortened to 23 via t.co; the two emoji
+    // already weigh 2 in JS surrogate length, matching X's count.
+    const xLen = (t: string) =>
+      t.replace(RECOVERY_SHARE_URL, "x".repeat(23)).length;
+    let worst = 0;
+    for (const market of ["bull", "chop", "bear"] as const) {
+      const route = ROUTES[market];
+      for (const q2 of route.q2.options) {
+        for (const q3 of route.q3.options) {
+          const d = deriveRecovery({
+            market,
+            answers: {
+              market,
+              [route.q2.id]: q2.value,
+              [route.q3.id]: q3.value,
+            },
+            asset: { id: "bitcoin", name: "Bitcoin", symbol: "btc" },
+            realityAcceptance: 40,
+          })!;
+          worst = Math.max(worst, xLen(buildShareText(d)));
+        }
+      }
+    }
+    expect(worst).toBeLessThan(280);
+  });
 });
 
 describe("buildShareIntentUrl", () => {
   const data = deriveRecovery(bullFlow())!;
 
-  it("targets twitter.com/intent/tweet with a URL-encoded text param", () => {
+  it("targets x.com/intent/tweet with a URL-encoded text param", () => {
     const url = buildShareIntentUrl(data);
-    expect(url.startsWith("https://twitter.com/intent/tweet?text=")).toBe(true);
+    expect(url.startsWith("https://x.com/intent/tweet?text=")).toBe(true);
     // Newlines survive as %0A; spaces are encoded; the payload round-trips.
     expect(url).toContain("%0A");
     const decoded = decodeURIComponent(url.split("text=")[1]);
