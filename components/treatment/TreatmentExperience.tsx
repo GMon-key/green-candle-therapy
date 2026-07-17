@@ -458,6 +458,24 @@ export function TreatmentExperience({
     muteRef.current = muted;
   }, [muted]);
 
+  // Fallback for the discharge CTA: `done` is normally flipped inside the rAF
+  // loop at the end of the 30s clock, but that's a single frame — if the loop
+  // ever misses it (tab throttling, an error mid-climax, an early stop), the CTA
+  // would never mount and beat 7 becomes unreachable. This timer guarantees the
+  // end-state appears at the expected time regardless of the canvas loop.
+  // (Reduced-motion sets `done` synchronously in the main effect; harmless there.)
+  useEffect(() => {
+    const id = window.setTimeout(
+      () => setDone(true),
+      (PREROLL_DURATION + TOTAL_DURATION) * 1000 + 600,
+    );
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (done) console.info("[treatment] complete — discharge CTA shown");
+  }, [done]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1064,13 +1082,15 @@ export function TreatmentExperience({
           The badge is inert; the CTA is the one interactive element. Present in
           both the animated run and the reduced-motion end-state (both set done). */}
       {done && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-5 px-6">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-5 px-6">
           <span className="readout rounded-full border border-[#2ce56b]/30 bg-[#0b100e]/60 px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.24em] text-[#2ce56b]">
             Treatment complete
           </span>
+          {/* No entrance animation here on purpose — the CTA must be visible the
+              instant it mounts, never gated behind an opacity:0 → 1 keyframe. */}
           <Link
             href="/recovery"
-            className="gct-rise pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-[#22c063] px-6 py-3 text-sm font-semibold text-[#06120c] shadow-lg shadow-[#22c063]/25 transition-colors hover:bg-[#2ce56b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2ce56b]"
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-[#22c063] px-6 py-3 text-sm font-semibold text-[#06120c] shadow-lg shadow-[#22c063]/25 transition-colors hover:bg-[#2ce56b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2ce56b]"
           >
             View discharge summary →
           </Link>
