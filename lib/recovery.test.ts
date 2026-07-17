@@ -129,10 +129,13 @@ describe("buildShareText", () => {
         "The market remains unchanged.",
         "",
         "Thanks @MonkeHQ, I now feel better 🍌",
-        "",
-        RECOVERY_SHARE_URL,
       ].join("\n"),
     );
+  });
+
+  it("does NOT embed the link in the text (it rides the url param instead)", () => {
+    expect(text).not.toContain(RECOVERY_SHARE_URL);
+    expect(text).not.toMatch(/https?:\/\//);
   });
 
   it("uses the short labels, not the full clauses", () => {
@@ -142,19 +145,18 @@ describe("buildShareText", () => {
     expect(text).not.toContain(data.microDiagnoses[1]);
   });
 
-  it("is anti-spam compliant: 2 emoji, 1 mention, 1 link, no hashtags", () => {
+  it("is anti-spam compliant: 2 emoji, 1 mention, no hashtags", () => {
     expect(text.match(/🩺/g)?.length).toBe(1);
     expect(text.match(/🍌/g)?.length).toBe(1);
     expect(text.match(/@\w+/g)).toEqual(["@MonkeHQ"]);
-    expect(text.match(/https?:\/\//g)?.length).toBe(1);
     expect(text).not.toContain("#");
   });
 
-  it("stays under X's 280-char prefill limit on ALL 48 paths", () => {
-    // X-weighted length: the URL is shortened to 23 via t.co; the two emoji
-    // already weigh 2 in JS surrogate length, matching X's count.
-    const xLen = (t: string) =>
-      t.replace(RECOVERY_SHARE_URL, "x".repeat(23)).length;
+  it("stays under X's 280-char limit on ALL 48 paths (text + t.co link)", () => {
+    // Composed tweet = text + the url param, which X shortens to 23 via t.co
+    // (plus one separator). The two emoji weigh 2 in JS surrogate length,
+    // matching X's count.
+    const composedLen = (t: string) => t.length + 1 + 23;
     let worst = 0;
     for (const market of ["bull", "chop", "bear"] as const) {
       const route = ROUTES[market];
@@ -170,7 +172,7 @@ describe("buildShareText", () => {
             asset: { id: "bitcoin", name: "Bitcoin", symbol: "btc" },
             realityAcceptance: 40,
           })!;
-          worst = Math.max(worst, xLen(buildShareText(d)));
+          worst = Math.max(worst, composedLen(buildShareText(d)));
         }
       }
     }
@@ -181,12 +183,16 @@ describe("buildShareText", () => {
 describe("buildShareIntentUrl", () => {
   const data = deriveRecovery(bullFlow())!;
 
-  it("targets x.com/intent/tweet with a URL-encoded text param", () => {
+  it("targets x.com/intent/tweet with separate text + url params", () => {
     const url = buildShareIntentUrl(data);
     expect(url.startsWith("https://x.com/intent/tweet?text=")).toBe(true);
-    // Newlines survive as %0A; spaces are encoded; the payload round-trips.
+    // Newlines survive as %0A; spaces are encoded.
     expect(url).toContain("%0A");
-    const decoded = decodeURIComponent(url.split("text=")[1]);
-    expect(decoded).toBe(buildShareText(data));
+    // The text param round-trips to exactly the post body...
+    const textParam = url.split("text=")[1].split("&url=")[0];
+    expect(decodeURIComponent(textParam)).toBe(buildShareText(data));
+    // ...and the link rides its own url param, not the text.
+    const urlParam = url.split("&url=")[1];
+    expect(decodeURIComponent(urlParam)).toBe(RECOVERY_SHARE_URL);
   });
 });

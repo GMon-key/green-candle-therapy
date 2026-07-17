@@ -82,14 +82,6 @@ export default function RecoveryPage() {
     a.remove();
   }
 
-  function handleShare() {
-    if (!data) return;
-    const url = buildShareIntentUrl(data);
-    // Surface the exact URL opened (query attached) for the live walk / debug.
-    console.info("[share-on-x] opening:", url);
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
   if (!data) {
     return (
       <BeatShell theme="recovery" phase="Discharge">
@@ -217,13 +209,19 @@ export default function RecoveryPage() {
           >
             Download card
           </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="inline-flex items-center justify-center rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
+          {/* Native anchor (not window.open): opens X's composer via a real
+              link so the Referer is preserved — X's intent refuses to prefill
+              referrer-less requests. rel="noopener" keeps opener isolation
+              without the "noreferrer" that stripped the header. */}
+          <a
+            href={buildShareIntentUrl(data)}
+            target="_blank"
+            rel="noopener"
+            onClick={() => console.info("[share-on-x] opening:", buildShareIntentUrl(data))}
+            className="inline-flex items-center justify-center rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white no-underline transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
           >
             Share on X
-          </button>
+          </a>
         </div>
 
         {/* On-chain seam — a DISABLED placeholder only. The next pass fills this

@@ -137,6 +137,10 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
  * Uses the SHORT symptom labels (not the full clauses) so every path stays
  * under X's 280-char prefill limit while remaining individualised. The full
  * clauses live on the card image, which is the primary shared artifact.
+ *
+ * The link is NOT part of this text — it goes in X's dedicated `url` intent
+ * param (see buildShareIntentUrl). X's composer appends the link itself, and a
+ * URL embedded inside `text` was causing the composer to open EMPTY.
  */
 export function buildShareText(data: RecoveryData): string {
   return [
@@ -150,18 +154,18 @@ export function buildShareText(data: RecoveryData): string {
     "The market remains unchanged.",
     "",
     "Thanks @MonkeHQ, I now feel better 🍌",
-    "",
-    RECOVERY_SHARE_URL,
   ].join("\n");
 }
 
 /**
- * The X compose URL with the post text URL-encoded into the `text` param.
- * Uses x.com/intent/tweet — the current canonical endpoint (per docs.x.com).
- * twitter.com/intent/tweet 301-redirects here (query preserved); we target
- * x.com directly to avoid the cross-domain hop. NOT /intent/post, which has a
- * reported "opens login page instead of composer" bug.
+ * The X compose URL. Uses the OFFICIAL two-param form — `text` for the post body
+ * and a SEPARATE `url` param for the link (X appends + shortens it via t.co).
+ * This matches X's documented example (`?text=…&url=…`); putting the URL inside
+ * `text` made the composer open empty. Endpoint is x.com/intent/tweet
+ * (twitter.com/intent/tweet 301-redirects to the same place).
  */
 export function buildShareIntentUrl(data: RecoveryData): string {
-  return `https://x.com/intent/tweet?text=${encodeURIComponent(buildShareText(data))}`;
+  const text = encodeURIComponent(buildShareText(data));
+  const url = encodeURIComponent(RECOVERY_SHARE_URL);
+  return `https://x.com/intent/tweet?text=${text}&url=${url}`;
 }
