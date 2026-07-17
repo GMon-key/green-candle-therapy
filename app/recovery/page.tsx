@@ -10,8 +10,10 @@ import { RecoveryCard } from "@/components/recovery/RecoveryCard";
 import { ATTENDING_CLINICIAN } from "@/lib/assessment";
 import { WELLBEING_UNIT_DEFINITION } from "@/lib/config";
 import { getFlow } from "@/lib/flow";
+import { ensurePatientLabel } from "@/lib/patient";
 import {
   buildShareIntentUrl,
+  buildShareText,
   deriveRecovery,
   type RecoveryData,
 } from "@/lib/recovery";
@@ -43,7 +45,9 @@ const DOWNLOAD_FILENAME = "green-candle-therapy-discharge.png";
 export default function RecoveryPage() {
   const router = useRouter();
   const [data, setData] = useState<RecoveryData | null>(null);
+  const [patientLabel, setPatientLabel] = useState("");
   const [treatmentDate, setTreatmentDate] = useState("");
+  const [copied, setCopied] = useState(false);
   const cardCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Read persisted flow after mount (sessionStorage is client-only; defer a
@@ -59,6 +63,9 @@ export default function RecoveryPage() {
         return;
       }
       setData(derived);
+      // Patient identity is separate from the flow — read (or mint) it from the
+      // localStorage-only patient record. Never derived from the asset.
+      setPatientLabel(ensurePatientLabel());
       setTreatmentDate(
         new Date().toLocaleDateString("en-GB", {
           day: "numeric",
@@ -80,6 +87,28 @@ export default function RecoveryPage() {
     document.body.appendChild(a);
     a.click();
     a.remove();
+  }
+
+  // Share matches our working Banana Line pattern exactly: whole caption (link
+  // inline) in a single text= param, opened with window.open(_blank, noopener).
+  function handleShare() {
+    if (!data) return;
+    const url = buildShareIntentUrl(data);
+    console.info("[share-on-x] opening:", url);
+    window.open(url, "_blank", "noopener");
+  }
+
+  // Bulletproof fallback: copy the full caption (link included) to the clipboard
+  // so the post can be pasted into a fresh compose regardless of X's intent.
+  async function handleCopy() {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(buildShareText(data));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked (insecure context / permissions) — no-op */
+    }
   }
 
   if (!data) {
@@ -114,7 +143,13 @@ export default function RecoveryPage() {
         <div className="mt-8 flex flex-col gap-7 rounded-2xl border border-clinic-line bg-clinic-surface p-6 sm:p-8">
           <Field label="Patient" delay={RISE.patient}>
             <span className="text-lg font-semibold text-clinic-fg">
-              {data.patientLabel}
+              {patientLabel}
+            </span>
+          </Field>
+
+          <Field label="Presenting complaint" delay={RISE.patient + 60}>
+            <span className="text-lg font-semibold text-clinic-fg">
+              {data.presentingComplaint}
             </span>
           </Field>
 
@@ -129,7 +164,7 @@ export default function RecoveryPage() {
 
           <Field label="Treated for" delay={RISE.treated}>
             <ul className="flex flex-col gap-2">
-              {data.microDiagnoses.map((symptom, i) => (
+              {data.microLabels.map((symptom, i) => (
                 <li
                   key={i}
                   className="flex gap-2 text-sm leading-relaxed text-clinic-fg sm:text-base"
@@ -140,8 +175,8 @@ export default function RecoveryPage() {
                   <span>
                     <TypeLine
                       text={symptom}
-                      speed={14}
-                      startDelay={RISE.treated + i * 900}
+                      speed={16}
+                      startDelay={RISE.treated + i * 320}
                     />
                   </span>
                 </li>
@@ -193,7 +228,11 @@ export default function RecoveryPage() {
             Shareable summary
           </span>
           <div className="mt-4 overflow-hidden rounded-xl">
-            <RecoveryCard data={data} canvasRef={cardCanvasRef} />
+            <RecoveryCard
+              data={data}
+              patientLabel={patientLabel}
+              canvasRef={cardCanvasRef}
+            />
           </div>
         </div>
 
@@ -209,19 +248,23 @@ export default function RecoveryPage() {
           >
             Download card
           </button>
-          {/* Native anchor (not window.open): opens X's composer via a real
-              link so the Referer is preserved — X's intent refuses to prefill
-              referrer-less requests. rel="noopener" keeps opener isolation
-              without the "noreferrer" that stripped the header. */}
-          <a
-            href={buildShareIntentUrl(data)}
-            target="_blank"
-            rel="noopener"
-            onClick={() => console.info("[share-on-x] opening:", buildShareIntentUrl(data))}
-            className="inline-flex items-center justify-center rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white no-underline transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
+          {/* Share via window.open — the exact structure of our working Banana
+              Line share (single text= param with the link inline, noopener). */}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex items-center justify-center rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
           >
             Share on X
-          </a>
+          </button>
+          {/* Bulletproof fallback: copy the caption to paste manually. */}
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center justify-center rounded-lg border border-clinic-line bg-clinic-surface px-6 py-3 text-sm font-semibold text-clinic-fg transition-colors hover:border-clinic-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
+          >
+            {copied ? "Copied ✓" : "Copy caption"}
+          </button>
         </div>
 
         {/* On-chain seam — a DISABLED placeholder only. The next pass fills this

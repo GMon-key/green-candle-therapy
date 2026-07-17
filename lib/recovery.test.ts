@@ -86,11 +86,12 @@ describe("deriveRecovery", () => {
     ).toBeNull();
   });
 
-  it("assembles the patient label, code and micro-diagnoses from persisted data", () => {
+  it("assembles the presenting complaint, code and micro-diagnoses from persisted data", () => {
     const data = deriveRecovery(bullFlow());
     expect(data).not.toBeNull();
     if (!data) return;
-    expect(data.patientLabel).toBe("BITCOIN (BTC/USD)");
+    // The asset is the PRESENTING COMPLAINT, not the patient (the trader is).
+    expect(data.presentingComplaint).toBe("BTC/USD");
     expect(data.presentationTag).toBe("Denial, classic presentation");
     // GCT-[routeDigit=3][Q2 consolidation, idx 1 -> 2][Q3 last_cycle, idx 2 -> 3]
     expect(data.code).toBe("GCT-323");
@@ -116,7 +117,7 @@ describe("buildShareText", () => {
   const data = deriveRecovery(bullFlow())!;
   const text = buildShareText(data);
 
-  it("follows the exact template with the SHORT labels filled in", () => {
+  it("follows the exact template with SHORT labels + the link inline", () => {
     expect(text).toBe(
       [
         "🩺 Green Candle Therapy — Discharge Summary",
@@ -129,13 +130,14 @@ describe("buildShareText", () => {
         "The market remains unchanged.",
         "",
         "Thanks @MonkeHQ, I now feel better 🍌",
+        "",
+        RECOVERY_SHARE_URL,
       ].join("\n"),
     );
   });
 
-  it("does NOT embed the link in the text (it rides the url param instead)", () => {
-    expect(text).not.toContain(RECOVERY_SHARE_URL);
-    expect(text).not.toMatch(/https?:\/\//);
+  it("carries the link inline at the end (single-string caption, no url param)", () => {
+    expect(text.endsWith(RECOVERY_SHARE_URL)).toBe(true);
   });
 
   it("uses the short labels, not the full clauses", () => {
@@ -145,18 +147,18 @@ describe("buildShareText", () => {
     expect(text).not.toContain(data.microDiagnoses[1]);
   });
 
-  it("is anti-spam compliant: 2 emoji, 1 mention, no hashtags", () => {
+  it("is anti-spam compliant: 2 emoji, 1 mention, 1 link, no hashtags", () => {
     expect(text.match(/🩺/g)?.length).toBe(1);
     expect(text.match(/🍌/g)?.length).toBe(1);
     expect(text.match(/@\w+/g)).toEqual(["@MonkeHQ"]);
+    expect(text.match(/https?:\/\//g)?.length).toBe(1);
     expect(text).not.toContain("#");
   });
 
-  it("stays under X's 280-char limit on ALL 48 paths (text + t.co link)", () => {
-    // Composed tweet = text + the url param, which X shortens to 23 via t.co
-    // (plus one separator). The two emoji weigh 2 in JS surrogate length,
-    // matching X's count.
-    const composedLen = (t: string) => t.length + 1 + 23;
+  it("stays under X's 280-char limit on ALL 48 paths (link shortens to t.co 23)", () => {
+    // The inline URL is counted by X as 23 chars (t.co); the two emoji weigh 2
+    // in JS surrogate length, matching X's count.
+    const xLen = (t: string) => t.replace(RECOVERY_SHARE_URL, "x".repeat(23)).length;
     let worst = 0;
     for (const market of ["bull", "chop", "bear"] as const) {
       const route = ROUTES[market];
@@ -172,7 +174,7 @@ describe("buildShareText", () => {
             asset: { id: "bitcoin", name: "Bitcoin", symbol: "btc" },
             realityAcceptance: 40,
           })!;
-          worst = Math.max(worst, composedLen(buildShareText(d)));
+          worst = Math.max(worst, xLen(buildShareText(d)));
         }
       }
     }
@@ -183,16 +185,14 @@ describe("buildShareText", () => {
 describe("buildShareIntentUrl", () => {
   const data = deriveRecovery(bullFlow())!;
 
-  it("targets x.com/intent/tweet with separate text + url params", () => {
+  it("targets twitter.com/intent/tweet with a single URL-encoded text param", () => {
     const url = buildShareIntentUrl(data);
-    expect(url.startsWith("https://x.com/intent/tweet?text=")).toBe(true);
-    // Newlines survive as %0A; spaces are encoded.
-    expect(url).toContain("%0A");
-    // The text param round-trips to exactly the post body...
-    const textParam = url.split("text=")[1].split("&url=")[0];
-    expect(decodeURIComponent(textParam)).toBe(buildShareText(data));
-    // ...and the link rides its own url param, not the text.
-    const urlParam = url.split("&url=")[1];
-    expect(decodeURIComponent(urlParam)).toBe(RECOVERY_SHARE_URL);
+    // Matches the working Banana Line structure: twitter.com, one text= param.
+    expect(url.startsWith("https://twitter.com/intent/tweet?text=")).toBe(true);
+    expect(url).not.toContain("&url=");
+    expect(url).toContain("%0A"); // newlines survive
+    // The whole caption (link inline) round-trips out of the single param.
+    const decoded = decodeURIComponent(url.split("text=")[1]);
+    expect(decoded).toBe(buildShareText(data));
   });
 });

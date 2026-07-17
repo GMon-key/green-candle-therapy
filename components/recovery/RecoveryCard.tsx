@@ -126,7 +126,11 @@ function wrapText(
 }
 
 /** Draw the full card into `canvas` at the current device pixel ratio. */
-function renderCard(canvas: HTMLCanvasElement, data: RecoveryData) {
+function renderCard(
+  canvas: HTMLCanvasElement,
+  data: RecoveryData,
+  patientLabel: string,
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -200,31 +204,43 @@ function renderCard(canvas: HTMLCanvasElement, data: RecoveryData) {
   const rightX = pad + 700;
   const rightW = W - rightX - pad;
 
-  // LEFT: patient, diagnosis, treated-for
+  // LEFT: patient (the trader), presenting complaint (the asset), diagnosis,
+  // treated-for (short labels).
   let y = colTop;
 
+  // Patient — the trader's handle or anonymous case ID (NOT the asset).
   label("Patient", leftX, y);
   y += CARD.labelGap;
   ctx.font = sansF(30, 600);
   ctx.fillStyle = CARD.ink;
-  ctx.fillText(data.patientLabel, leftX, y);
-  y += CARD.blockGap + 14;
+  ctx.fillText(patientLabel, leftX, y);
+  y += 44;
+
+  // Presenting complaint — the asset/exposure they arrived with.
+  label("Presenting complaint", leftX, y);
+  y += CARD.labelGap;
+  ctx.font = sansF(22, 600);
+  ctx.fillStyle = CARD.ink;
+  ctx.fillText(data.presentingComplaint, leftX, y);
+  y += 44;
 
   label("Diagnosis", leftX, y);
   y += CARD.labelGap;
-  ctx.font = sansF(24, 600);
+  ctx.font = sansF(23, 600);
   ctx.fillStyle = CARD.accentSoft;
   ctx.fillText(data.presentationTag, leftX, y);
   y += 26;
   ctx.font = monoF(14, 500);
   ctx.fillStyle = CARD.muted;
   ctx.fillText(`${data.code} · ${data.secondaryReference}`, leftX, y);
-  y += CARD.blockGap + 10;
+  y += 42;
 
+  // Treated for — the SHORT symptom labels, so they read as a grammatical
+  // clinical problem list (matching the tweet + the on-screen summary).
   label("Treated for", leftX, y);
   y += CARD.labelGap - 4;
   ctx.font = sansF(16.5);
-  for (const symptom of data.microDiagnoses) {
+  for (const symptom of data.microLabels) {
     ctx.fillStyle = CARD.accent;
     ctx.fillText("·", leftX, y);
     ctx.fillStyle = CARD.ink;
@@ -309,10 +325,13 @@ function renderCard(canvas: HTMLCanvasElement, data: RecoveryData) {
  */
 export function RecoveryCard({
   data,
+  patientLabel,
   canvasRef,
   onReady,
 }: {
   data: RecoveryData;
+  /** The trader's identity — "@handle" or "Patient #4471" (from lib/patient). */
+  patientLabel: string;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onReady?: () => void;
 }) {
@@ -322,7 +341,7 @@ export function RecoveryCard({
     let cancelled = false;
     const draw = () => {
       if (cancelled) return;
-      renderCard(canvas, data);
+      renderCard(canvas, data, patientLabel);
       onReady?.();
     };
     // Draw once fonts are ready so the export uses the real Plex faces; draw
@@ -336,13 +355,13 @@ export function RecoveryCard({
     return () => {
       cancelled = true;
     };
-  }, [data, canvasRef, onReady]);
+  }, [data, patientLabel, canvasRef, onReady]);
 
   return (
     <canvas
       ref={canvasRef}
       role="img"
-      aria-label={`Discharge summary card for ${data.patientLabel}. Diagnosis ${data.presentationTag}, ${data.code}. Reality Acceptance ${data.realityAcceptance} percent. Recovery index ${data.recoveryCU} ${WELLBEING_UNIT}.`}
+      aria-label={`Discharge summary card for ${patientLabel}. Presenting complaint ${data.presentingComplaint}. Diagnosis ${data.presentationTag}, ${data.code}. Reality Acceptance ${data.realityAcceptance} percent. Recovery index ${data.recoveryCU} ${WELLBEING_UNIT}.`}
       className="h-auto w-full rounded-xl border border-clinic-line shadow-sm"
       style={{ aspectRatio: `${CARD.width} / ${CARD.height}` }}
     />

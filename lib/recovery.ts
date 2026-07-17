@@ -58,12 +58,12 @@ export function presentationTag(market: Market): string {
 
 /** Everything the discharge summary, share card, and X post render. */
 export interface RecoveryData {
-  /** Asset name, upper — e.g. "BITCOIN". */
-  patientName: string;
-  /** Asset symbol, upper — e.g. "BTC". */
-  symbol: string;
-  /** Patient line, e.g. "BITCOIN (BTC/USD)". */
-  patientLabel: string;
+  /**
+   * The presenting complaint — the asset/exposure, e.g. "BTC/USD". This is NOT
+   * the patient: the trader is the patient (their handle / case ID, from
+   * lib/patient), and the asset is what they presented with.
+   */
+  presentingComplaint: string;
   /** Route presentation tag, e.g. "Denial, classic presentation". */
   presentationTag: string;
   /** GCT display code, e.g. "GCT-343". */
@@ -101,7 +101,6 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
   // somehow absent, so the three beats never disagree.
   const ra = realityAcceptance ?? denial.realityAcceptance;
 
-  const patientName = asset.name.toUpperCase();
   const symbol = asset.symbol.toUpperCase();
 
   // The selected Q2/Q3 answers (validated non-null by deriveDenial above) — the
@@ -110,9 +109,7 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
   const a = answers ?? {};
 
   return {
-    patientName,
-    symbol,
-    patientLabel: `${patientName} (${symbol}/USD)`,
+    presentingComplaint: `${symbol}/USD`,
     presentationTag: presentationTag(market),
     code: denial.code,
     secondaryReference: SECONDARY_REFERENCE,
@@ -133,14 +130,11 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
  * ========================================================================== */
 
 /**
- * The exact pre-filled X post text (pre-encoding). Newlines are literal "\n".
- * Uses the SHORT symptom labels (not the full clauses) so every path stays
- * under X's 280-char prefill limit while remaining individualised. The full
- * clauses live on the card image, which is the primary shared artifact.
- *
- * The link is NOT part of this text — it goes in X's dedicated `url` intent
- * param (see buildShareIntentUrl). X's composer appends the link itself, and a
- * URL embedded inside `text` was causing the composer to open EMPTY.
+ * The complete pre-filled X post (pre-encoding), with the link INLINE at the
+ * end. This mirrors the structure of our known-working Banana Line share: the
+ * whole caption — including the URL — is ONE string that goes into `text=`, not
+ * a separate `url` param. Uses the SHORT symptom labels so every path stays
+ * under X's 280-char limit; the full clauses live on the card image.
  */
 export function buildShareText(data: RecoveryData): string {
   return [
@@ -154,18 +148,18 @@ export function buildShareText(data: RecoveryData): string {
     "The market remains unchanged.",
     "",
     "Thanks @MonkeHQ, I now feel better 🍌",
+    "",
+    RECOVERY_SHARE_URL,
   ].join("\n");
 }
 
 /**
- * The X compose URL. Uses the OFFICIAL two-param form — `text` for the post body
- * and a SEPARATE `url` param for the link (X appends + shortens it via t.co).
- * This matches X's documented example (`?text=…&url=…`); putting the URL inside
- * `text` made the composer open empty. Endpoint is x.com/intent/tweet
- * (twitter.com/intent/tweet 301-redirects to the same place).
+ * The X compose URL — the exact STRUCTURE of our working Banana Line share:
+ * twitter.com/intent/tweet with the whole caption (link included) in a SINGLE
+ * `text=` param, encodeURIComponent'd. No separate `url=` param. twitter.com
+ * 301-redirects to x.com preserving the param. Opened via
+ * window.open(url, "_blank", "noopener") — noopener only, never noreferrer.
  */
 export function buildShareIntentUrl(data: RecoveryData): string {
-  const text = encodeURIComponent(buildShareText(data));
-  const url = encodeURIComponent(RECOVERY_SHARE_URL);
-  return `https://x.com/intent/tweet?text=${text}&url=${url}`;
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(buildShareText(data))}`;
 }

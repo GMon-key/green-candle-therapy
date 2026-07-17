@@ -113,7 +113,7 @@ export default function Home() {
 
             <div className="gct-rise pt-2" style={{ animationDelay: "690ms" }}>
               <a
-                href="/assessment"
+                href="/admission"
                 className="inline-flex rounded-lg bg-clinic-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-clinic-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clinic-fg"
               >
                 Begin Assessment
