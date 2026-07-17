@@ -117,23 +117,19 @@ describe("buildShareText", () => {
   const data = deriveRecovery(bullFlow())!;
   const text = buildShareText(data);
 
-  it("follows the exact template with SHORT labels + the link inline", () => {
+  it("is a SINGLE FLOWING LINE with the short labels + inline link (no newlines)", () => {
     expect(text).toBe(
-      [
-        "🩺 Green Candle Therapy — Discharge Summary",
-        "",
-        "Treated for:",
-        "· Decline reframed as consolidation",
-        "· Unrevised multi-cycle conviction",
-        "",
-        "Reality Acceptance: 40%.",
-        "The market remains unchanged.",
-        "",
-        "Thanks @MonkeHQ, I now feel better 🍌",
-        "",
+      "🩺 Green Candle Therapy — Discharge Summary. " +
+        "Treated for: Decline reframed as consolidation; Unrevised multi-cycle conviction. " +
+        "Reality Acceptance: 40%. " +
+        "The market remains unchanged. " +
+        "Thanks @MonkeHQ, I now feel better 🍌 " +
         RECOVERY_SHARE_URL,
-      ].join("\n"),
     );
+  });
+
+  it("contains NO newlines (the empty-composer culprit)", () => {
+    expect(text).not.toContain("\n");
   });
 
   it("carries the link inline at the end (single-string caption, no url param)", () => {
@@ -190,7 +186,7 @@ describe("buildShareIntentUrl", () => {
     // Matches the working Banana Line structure: twitter.com, one text= param.
     expect(url.startsWith("https://twitter.com/intent/tweet?text=")).toBe(true);
     expect(url).not.toContain("&url=");
-    expect(url).toContain("%0A"); // newlines survive
+    expect(url).not.toContain("%0A"); // flat caption — no encoded newlines
     // The whole caption (link inline) round-trips out of the single param.
     const decoded = decodeURIComponent(url.split("text=")[1]);
     expect(decoded).toBe(buildShareText(data));

@@ -130,27 +130,24 @@ export function deriveRecovery(flow: FlowState): RecoveryData | null {
  * ========================================================================== */
 
 /**
- * The complete pre-filled X post (pre-encoding), with the link INLINE at the
- * end. This mirrors the structure of our known-working Banana Line share: the
- * whole caption — including the URL — is ONE string that goes into `text=`, not
- * a separate `url` param. Uses the SHORT symptom labels so every path stays
- * under X's 280-char limit; the full clauses live on the card image.
+ * The complete pre-filled X post (pre-encoding), link INLINE at the end. This
+ * matches our working Banana Line share in BOTH structure AND shape: the whole
+ * caption is ONE string in `text=`, and — critically — it is a SINGLE FLOWING
+ * LINE with NO newlines. The deployed multi-line (`\n`) version had the exact
+ * same code path as Banana Line yet opened an empty composer; removing the
+ * newlines is the one remaining variable (X's composer drops `\n`-heavy prefills).
+ * Uses the SHORT labels so every path stays under 280; full clauses live on the
+ * card image.
  */
 export function buildShareText(data: RecoveryData): string {
-  return [
-    "🩺 Green Candle Therapy — Discharge Summary",
-    "",
-    "Treated for:",
-    `· ${data.microLabels[0]}`,
-    `· ${data.microLabels[1]}`,
-    "",
-    `Reality Acceptance: ${data.realityAcceptance}%.`,
-    "The market remains unchanged.",
-    "",
-    "Thanks @MonkeHQ, I now feel better 🍌",
-    "",
-    RECOVERY_SHARE_URL,
-  ].join("\n");
+  return (
+    `🩺 Green Candle Therapy — Discharge Summary. ` +
+    `Treated for: ${data.microLabels[0]}; ${data.microLabels[1]}. ` +
+    `Reality Acceptance: ${data.realityAcceptance}%. ` +
+    `The market remains unchanged. ` +
+    `Thanks @MonkeHQ, I now feel better 🍌 ` +
+    RECOVERY_SHARE_URL
+  );
 }
 
 /**
