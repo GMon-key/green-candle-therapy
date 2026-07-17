@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as Tone from "tone";
 import { useEffect, useRef, useState } from "react";
 
@@ -1059,11 +1060,20 @@ export function TreatmentExperience({
         </p>
       </div>
 
+      {/* End-state: hold on the euphoric high, then offer discharge (beat 7).
+          The badge is inert; the CTA is the one interactive element. Present in
+          both the animated run and the reduced-motion end-state (both set done). */}
       {done && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-5 px-6">
           <span className="readout rounded-full border border-[#2ce56b]/30 bg-[#0b100e]/60 px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.24em] text-[#2ce56b]">
             Treatment complete
           </span>
+          <Link
+            href="/recovery"
+            className="gct-rise pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-[#22c063] px-6 py-3 text-sm font-semibold text-[#06120c] shadow-lg shadow-[#22c063]/25 transition-colors hover:bg-[#2ce56b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2ce56b]"
+          >
+            View discharge summary →
+          </Link>
         </div>
       )}
     </div>
