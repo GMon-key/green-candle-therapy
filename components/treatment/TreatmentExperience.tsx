@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import * as Tone from "tone";
 import { useEffect, useRef, useState } from "react";
 
@@ -1079,21 +1078,28 @@ export function TreatmentExperience({
       </div>
 
       {/* End-state: hold on the euphoric high, then offer discharge (beat 7).
-          The badge is inert; the CTA is the one interactive element. Present in
-          both the animated run and the reduced-motion end-state (both set done). */}
+          The badge and the CTA share the EXACT same gate (`done`) and the same
+          container, so they always appear together — if the badge shows, the CTA
+          shows. The CTA is a plain <a> (not next/link) with INLINE colours, so
+          its visibility can't depend on next/link rendering or on Tailwind
+          generating an arbitrary colour class. Full navigation is fine here:
+          the flow lives in sessionStorage, which survives the page load. */}
       {done && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-5 px-6">
-          <span className="readout rounded-full border border-[#2ce56b]/30 bg-[#0b100e]/60 px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.24em] text-[#2ce56b]">
+          <span
+            className="rounded-full border px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.24em]"
+            style={{ borderColor: "rgba(44,229,107,0.3)", background: "rgba(11,16,14,0.6)", color: "#2ce56b" }}
+          >
             Treatment complete
           </span>
-          {/* No entrance animation here on purpose — the CTA must be visible the
-              instant it mounts, never gated behind an opacity:0 → 1 keyframe. */}
-          <Link
+          {/* No entrance animation — visible the instant it mounts. */}
+          <a
             href="/recovery"
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-[#22c063] px-6 py-3 text-sm font-semibold text-[#06120c] shadow-lg shadow-[#22c063]/25 transition-colors hover:bg-[#2ce56b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2ce56b]"
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold no-underline transition-transform hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ backgroundColor: "#22c063", color: "#06120c", boxShadow: "0 8px 30px rgba(34,192,99,0.35)" }}
           >
             View discharge summary →
-          </Link>
+          </a>
         </div>
       )}
     </div>
