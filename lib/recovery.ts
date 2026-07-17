@@ -15,15 +15,8 @@ import { shortLabelFor } from "./symptomLabels";
  * deferred Cope Units reveal — a deadpan derivation, deterministic per session.
  */
 
-/** The canonical public URL. */
+/** The canonical public URL, embedded verbatim in the shareable X post. */
 export const RECOVERY_SHARE_URL = "https://green-candle-therapy.vercel.app";
-
-/**
- * The link exactly as it appears in the share caption. BISECT TEST 1: a bare
- * domain with NO scheme (X still auto-links it) — isolating whether the full
- * "https://" URL was what made the composer open empty.
- */
-export const SHARE_CAPTION_LINK = "green-candle-therapy.vercel.app";
 
 /* ============================================================================
  * Recovery index (CU) — the deferred Cope Units reveal.
@@ -153,7 +146,7 @@ export function buildShareText(data: RecoveryData): string {
     `Reality Acceptance: ${data.realityAcceptance}%. ` +
     `The market remains unchanged. ` +
     `Thanks @MonkeHQ, I now feel better 🍌 ` +
-    SHARE_CAPTION_LINK
+    RECOVERY_SHARE_URL
   );
 }
 

@@ -89,13 +89,33 @@ export default function RecoveryPage() {
     a.remove();
   }
 
-  // Share matches our working Banana Line pattern exactly: whole caption (link
-  // inline) in a single text= param, opened with window.open(_blank, noopener).
+  // Share on X. The URL is built SYNCHRONOUSLY at the top (no await/promise —
+  // buildShareIntentUrl is a pure string build over already-loaded state), so the
+  // user gesture stays "live" for the popup. Content is proven fine (the caption
+  // prefills when pasted); the failure was the popup CONTEXT. Fix: open a blank
+  // tab in the same tick (keeps the new-tab UX + gesture), then NAVIGATE it
+  // top-level to the intent URL — the same top-level navigation the address bar
+  // does, which prefills. We drop "noopener" so we get a real window reference
+  // (to detect a popup block) and sever the opener manually. If the popup is
+  // blocked (ref is null), fall back to a same-tab navigation so the share still
+  // happens.
   function handleShare() {
     if (!data) return;
     const url = buildShareIntentUrl(data);
     console.info("[share-on-x] opening:", url);
-    window.open(url, "_blank", "noopener");
+    const w = window.open("", "_blank");
+    console.info("[share] window.open returned:", w);
+    if (w) {
+      try {
+        w.opener = null;
+      } catch {
+        /* cross-origin opener not writable — ignore */
+      }
+      w.location.href = url;
+    } else {
+      // Popup blocked → same-tab top-level nav (still prefills; leaves the app).
+      window.location.href = url;
+    }
   }
 
   // Bulletproof fallback: copy the full caption (link included) to the clipboard

@@ -9,8 +9,8 @@ import {
   presentationTag,
   RECOVERY_CU_FLOOR,
   RECOVERY_CU_MAX,
+  RECOVERY_SHARE_URL,
   recoveryIndexCU,
-  SHARE_CAPTION_LINK,
 } from "./recovery";
 
 /** A complete bull-route flow: Q2 = consolidation (idx 2), Q3 = last_cycle (idx 3). */
@@ -124,16 +124,16 @@ describe("buildShareText", () => {
         "Reality Acceptance: 40%. " +
         "The market remains unchanged. " +
         "Thanks @MonkeHQ, I now feel better 🍌 " +
-        SHARE_CAPTION_LINK,
+        RECOVERY_SHARE_URL,
     );
   });
 
-  it("contains NO newlines (the empty-composer culprit)", () => {
+  it("contains NO newlines", () => {
     expect(text).not.toContain("\n");
   });
 
   it("carries the link inline at the end (single-string caption, no url param)", () => {
-    expect(text.endsWith(SHARE_CAPTION_LINK)).toBe(true);
+    expect(text.endsWith(RECOVERY_SHARE_URL)).toBe(true);
   });
 
   it("uses the short labels, not the full clauses", () => {
@@ -143,20 +143,18 @@ describe("buildShareText", () => {
     expect(text).not.toContain(data.microDiagnoses[1]);
   });
 
-  it("is anti-spam compliant: 2 emoji, 1 mention, 1 bare-domain link, no hashtags", () => {
+  it("is anti-spam compliant: 2 emoji, 1 mention, 1 link, no hashtags", () => {
     expect(text.match(/🩺/g)?.length).toBe(1);
     expect(text.match(/🍌/g)?.length).toBe(1);
     expect(text.match(/@\w+/g)).toEqual(["@MonkeHQ"]);
-    // BISECT TEST 1: bare domain, no scheme (X still auto-links it).
-    expect(text).not.toContain("https://");
-    expect(text.split(SHARE_CAPTION_LINK).length - 1).toBe(1);
+    expect(text.match(/https?:\/\//g)?.length).toBe(1);
     expect(text).not.toContain("#");
   });
 
   it("stays under X's 280-char limit on ALL 48 paths (link shortens to t.co 23)", () => {
-    // The inline link is counted by X as 23 chars (t.co); the two emoji weigh 2
+    // The inline URL is counted by X as 23 chars (t.co); the two emoji weigh 2
     // in JS surrogate length, matching X's count.
-    const xLen = (t: string) => t.replace(SHARE_CAPTION_LINK, "x".repeat(23)).length;
+    const xLen = (t: string) => t.replace(RECOVERY_SHARE_URL, "x".repeat(23)).length;
     let worst = 0;
     for (const market of ["bull", "chop", "bear"] as const) {
       const route = ROUTES[market];
