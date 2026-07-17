@@ -14,16 +14,16 @@ export const SYMPTOM_LABELS: Record<string, string> = {
   // — bull · Q2 (bull_drop) —
   volatility: "Drawdown dismissed as noise",
   consolidation: "Decline reframed as consolidation",
-  understand: "External-vindication dependency",
+  understand: "Awaiting market apology",
   buy_more: "Loss-triggered exposure increase",
   // — bull · Q3 (bull_early) —
   weeks: "Quietly extended timeline",
-  longer: "Unquantified timeframe drift",
+  longer: "Vaguely widening timeline",
   last_cycle: "Unrevised multi-cycle conviction",
   timeless: "Timeless, unfalsifiable thesis",
   // — chop · Q2 (chop_reason) —
   comes_back: "Stagnation mistaken for stability",
-  not_broken: "Continuously revised damage threshold",
+  not_broken: "Goalposts continuously moved",
   building_energy: "Inactivity read as stored potential",
   direction_overrated: "Directionlessness reframed as stance",
   // — chop · Q3 (chop_waiting) —
@@ -33,9 +33,9 @@ export const SYMPTOM_LABELS: Record<string, string> = {
   apology: "Vindication demanded before action",
   // — bear · Q2 (bear_recovery) —
   any_day: "Permanently imminent recovery",
-  next_catalyst: "Unidentified-catalyst dependency",
+  next_catalyst: "Pending unnamed catalyst",
   when_i_sell: "Personal market-causation belief",
-  on_weekly: "Convenient timeframe substitution",
+  on_weekly: "Escaped to a higher timeframe",
   // — bear · Q3 (bear_strategy) —
   accumulate: "Accumulation against conceded conditions",
   hold: "Pricing dismissed as temporary error",
