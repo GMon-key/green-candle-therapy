@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { AssessmentBackGuard } from "@/components/AssessmentBackGuard";
 import { BeatShell } from "@/components/BeatShell";
 import { TypeLine } from "@/components/motion/TypeLine";
 import { type AssessmentQuestion, Q1, ROUTES } from "@/lib/assessment";
@@ -78,6 +79,7 @@ export default function AssessmentPage() {
 
   return (
     <BeatShell theme="assessment" phase="Assessment">
+      <AssessmentBackGuard />
       <div className="flex flex-1 flex-col">
         <span className="readout text-xs font-medium uppercase tracking-[0.24em] text-clinic-muted">
           Assessment · {String(index + 1).padStart(2, "0")} / 0{TOTAL}
