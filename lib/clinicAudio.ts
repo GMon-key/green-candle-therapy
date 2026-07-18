@@ -48,6 +48,16 @@ export const AUDIO_TUNING = {
 /** Default when the visitor has expressed no preference (and no reduced-motion). */
 const DEFAULT_MUTED = false; // audio ON by default (autoplay-gated + visible mute)
 
+/**
+ * iOS silent switch. Web Audio is muted by the hardware silent/ringer switch by
+ * default (the 'ambient' audio session). Leave FALSE to RESPECT the switch —
+ * audio plays only with the ringer on, which is arguably the correct, least
+ * surprising behaviour. Set TRUE to request the 'playback' session so the clinic
+ * is audible even in silent mode (Web Audio Session API, iOS 16.4+; the call is
+ * try/caught and a harmless no-op everywhere else).
+ */
+export const AUDIO_SESSION_PLAYBACK = false;
+
 const MUTE_KEY = "gct.audio.muted";
 
 /* ============================================================================
@@ -57,8 +67,9 @@ const MUTE_KEY = "gct.audio.muted";
 type ToneModule = typeof import("tone");
 
 let Tone: ToneModule | null = null;
+let tonePromise: Promise<void> | null = null;
+let primerCtx: AudioContext | null = null; // created + resumed inside the first gesture
 let started = false;
-let starting = false;
 
 let muted = resolveInitialMuted();
 let suppressed = false; // RELAPSE silence cut — blips/measure go quiet while set
@@ -129,49 +140,103 @@ function nextToneTime(): number {
  * Public API
  * ========================================================================== */
 
+/** Build the audio graph on the current Tone context. Safe to call repeatedly. */
+function buildGraph(): void {
+  if (master || !Tone) return;
+  master = new Tone.Volume(AUDIO_TUNING.masterDb).toDestination();
+  master.mute = muted;
+
+  blipSynth = new Tone.Synth({
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.001, decay: AUDIO_TUNING.blip.decay, sustain: 0, release: 0.03 },
+  }).connect(master);
+  blipSynth.volume.value = AUDIO_TUNING.blip.db;
+
+  measureSynth = new Tone.Synth({
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.006, decay: AUDIO_TUNING.measure.decay, sustain: 0, release: 0.12 },
+  }).connect(master);
+  measureSynth.volume.value = AUDIO_TUNING.measure.db;
+}
+
 /**
- * Start the audio engine. MUST be called from a user-gesture handler (the first
- * click/keypress). Idempotent, dynamically imports Tone, and never throws.
+ * Load Tone (once), adopt the gesture-unlocked native context, and build the
+ * graph. Runs AFTER the gesture — the context is already running, so nothing
+ * here needs the gesture. Never throws.
  */
-export async function initAudioOnGesture(): Promise<void> {
-  if (started || starting) return;
-  starting = true;
+function loadTone(): Promise<void> {
+  if (tonePromise) return tonePromise;
+  tonePromise = import("tone")
+    .then((m) => {
+      Tone = m;
+      try {
+        // Hand Tone the context we created + resumed inside the gesture, so all
+        // its nodes run on an already-unlocked context (the mobile-safe path).
+        if (primerCtx) Tone.setContext(primerCtx);
+      } catch {
+        /* setContext unsupported shape — Tone falls back to its own context */
+      }
+      try {
+        void Tone.start();
+      } catch {
+        /* no-op */
+      }
+      buildGraph();
+    })
+    .catch(() => {
+      /* import failed — the engine stays a silent no-op */
+    });
+  return tonePromise;
+}
+
+/**
+ * Start the engine FROM WITHIN a user-gesture handler.
+ *
+ * The critical mobile fix: we create + resume a native AudioContext SYNCHRONOUSLY
+ * inside the gesture (the standard iOS unlock — a context created during a real
+ * touch is allowed to run), BEFORE any await. Tone is then imported async and
+ * adopts that already-running context. The previous code awaited the dynamic
+ * import before resuming, which pushed the resume out of the gesture — desktop
+ * leniently resumed anyway, but mobile Safari left the context suspended (silent).
+ *
+ * Autoplay-safe: NO context exists until this runs inside a gesture. Never throws.
+ * Returns true once the unlock has run (the graph finishes building a beat later).
+ */
+export function startAudioFromGesture(): boolean {
+  if (started) return true;
   try {
-    Tone = await import("tone");
-    await Tone.start(); // resumes the AudioContext within the gesture
-
-    master = new Tone.Volume(AUDIO_TUNING.masterDb).toDestination();
-    master.mute = muted;
-
-    blipSynth = new Tone.Synth({
-      oscillator: { type: "triangle" },
-      envelope: {
-        attack: 0.001,
-        decay: AUDIO_TUNING.blip.decay,
-        sustain: 0,
-        release: 0.03,
-      },
-    }).connect(master);
-    blipSynth.volume.value = AUDIO_TUNING.blip.db;
-
-    measureSynth = new Tone.Synth({
-      oscillator: { type: "sine" },
-      envelope: {
-        attack: 0.006,
-        decay: AUDIO_TUNING.measure.decay,
-        sustain: 0,
-        release: 0.12,
-      },
-    }).connect(master);
-    measureSynth.volume.value = AUDIO_TUNING.measure.db;
-
+    const AC: typeof AudioContext | undefined =
+      typeof window !== "undefined"
+        ? window.AudioContext ??
+          (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext
+        : undefined;
+    if (AC && !primerCtx) primerCtx = new AC(); // created IN the gesture → unlockable
+    try {
+      void primerCtx?.resume?.(); // resume IN the gesture (iOS)
+    } catch {
+      /* no-op */
+    }
+    // Optionally escape the iOS silent switch (off by default — respect it).
+    if (AUDIO_SESSION_PLAYBACK) {
+      try {
+        (navigator as unknown as { audioSession?: { type: string } }).audioSession!.type =
+          "playback";
+      } catch {
+        /* Web Audio Session API absent — ignore */
+      }
+    }
     started = true;
+    void loadTone(); // async: adopt primerCtx + build the graph
+    return true;
   } catch {
-    // Context blocked / import failed — degrade to a silent no-op engine.
-    started = false;
-  } finally {
-    starting = false;
+    return false;
   }
+}
+
+/** Resolves once Tone has loaded and the graph is built (for tests/awaiting). */
+export function whenAudioReady(): Promise<void> {
+  return tonePromise ?? Promise.resolve();
 }
 
 /** True if audio has been muted (by the visitor, storage, or reduced-motion). */

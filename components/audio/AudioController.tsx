@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { initAudioOnGesture } from "@/lib/clinicAudio";
+import { startAudioFromGesture } from "@/lib/clinicAudio";
 import { useClinicMuted } from "@/components/audio/useClinicMuted";
 
 /**
@@ -23,14 +23,21 @@ export function AudioController() {
   const [muted, setMuted] = useClinicMuted();
 
   useEffect(() => {
-    // The FIRST interaction anywhere starts audio. `once` + the engine's own
-    // idempotency guard means Strict-Mode double-mounts are harmless.
-    const start = () => void initAudioOnGesture();
-    window.addEventListener("pointerdown", start, { once: true });
-    window.addEventListener("keydown", start, { once: true });
+    // Start on the FIRST interaction. startAudioFromGesture creates + resumes a
+    // native AudioContext synchronously inside this handler (mobile Safari
+    // requires the unlock to happen in the gesture; Tone is imported after and
+    // adopts it). No AudioContext exists until this runs — autoplay-safe.
+    // `touchend` sits alongside `pointerdown` for older mobile engines, and we
+    // keep listening until a start actually succeeds so no tap is wasted.
+    const events = ["pointerdown", "touchend", "keydown"] as const;
+    const onGesture = () => {
+      if (startAudioFromGesture()) {
+        for (const e of events) window.removeEventListener(e, onGesture);
+      }
+    };
+    for (const e of events) window.addEventListener(e, onGesture);
     return () => {
-      window.removeEventListener("pointerdown", start);
-      window.removeEventListener("keydown", start);
+      for (const e of events) window.removeEventListener(e, onGesture);
     };
   }, []);
 

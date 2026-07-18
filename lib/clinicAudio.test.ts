@@ -32,9 +32,19 @@ class FakeVolume {
 vi.mock("tone", () => ({
   start: vi.fn().mockResolvedValue(undefined),
   now: () => toneTime,
+  setContext: vi.fn(),
   Volume: FakeVolume,
   Synth: FakeSynth,
 }));
+
+/** Fire the synchronous gesture start, then await the graph build (async import). */
+async function startEngine(a: {
+  startAudioFromGesture: () => boolean;
+  whenAudioReady: () => Promise<void>;
+}) {
+  a.startAudioFromGesture();
+  await a.whenAudioReady();
+}
 
 function stubBrowser(opts: { reduce?: boolean; stored?: string | null } = {}) {
   const { reduce = false, stored = null } = opts;
@@ -76,7 +86,7 @@ describe("clinicAudio — autoplay gate", () => {
     a.playMeasure();
     expect(triggers.length).toBe(0);
 
-    await a.initAudioOnGesture();
+    await startEngine(a);
     a.playBlip();
     expect(triggers.length).toBe(1);
   });
@@ -85,7 +95,7 @@ describe("clinicAudio — autoplay gate", () => {
 describe("clinicAudio — unified mute", () => {
   it("gates blips + measure and persists the flag", async () => {
     const a = await loadEngine({ stored: "false" });
-    await a.initAudioOnGesture();
+    await startEngine(a);
     expect(a.isMuted()).toBe(false);
 
     a.setMuted(true);
@@ -106,7 +116,7 @@ describe("clinicAudio — unified mute", () => {
 describe("clinicAudio — RELAPSE suppression", () => {
   it("silences blips + measure while suppressed, then restores", async () => {
     const a = await loadEngine({ stored: "false" });
-    await a.initAudioOnGesture();
+    await startEngine(a);
 
     a.setAudioSuppressed(true);
     a.playBlip();
@@ -123,7 +133,7 @@ describe("clinicAudio — RELAPSE suppression", () => {
 describe("clinicAudio — throttle", () => {
   it("drops blips inside the minimum interval (no machine-gun)", async () => {
     const a = await loadEngine({ stored: "false" });
-    await a.initAudioOnGesture();
+    await startEngine(a);
 
     nowValue = 5000;
     a.playBlip(); // fires
