@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { BeatShell } from "@/components/BeatShell";
 import { CopeStat } from "@/components/CopeStat";
 import { TypeLine } from "@/components/motion/TypeLine";
+import { OnChainRecord } from "@/components/onchain/OnChainRecord";
+import { Web3Provider } from "@/components/onchain/Web3Provider";
 import { RecoveryCard } from "@/components/recovery/RecoveryCard";
 import { ATTENDING_CLINICIAN } from "@/lib/assessment";
 import { WELLBEING_UNIT_DEFINITION } from "@/lib/config";
@@ -287,25 +289,12 @@ export default function RecoveryPage() {
           </button>
         </div>
 
-        {/* On-chain seam — a DISABLED placeholder only. The next pass fills this
-            slot with wallet connect + recordRecovery, and introduces the Monad
-            purple reserved for that moment. No purple, no wallet here yet. */}
-        <div className="mt-10 border-t border-clinic-line pt-6">
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-dashed border-clinic-line bg-clinic-surface px-6 py-3 text-sm font-semibold text-clinic-muted opacity-70"
-          >
-            Record recovery on-chain
-            <span className="readout text-[0.65rem] uppercase tracking-[0.16em]">
-              coming shortly
-            </span>
-          </button>
-          <p className="mt-3 max-w-md text-xs leading-relaxed text-clinic-muted">
-            Make this discharge permanent. Recording opens shortly.
-          </p>
-        </div>
+        {/* On-chain seam (beat 8) — wallet connect + live counter read, in Monad
+            purple. Provider is scoped here so wallet code never loads on the
+            emotional beats. Stage 1: connect + read only; the write is Stage 2. */}
+        <Web3Provider>
+          <OnChainRecord />
+        </Web3Provider>
       </div>
     </BeatShell>
   );
