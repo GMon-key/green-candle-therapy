@@ -31,6 +31,13 @@ export interface FlowState {
    * read on the patient, never derived from market data.
    */
   realityAcceptance?: number;
+  /**
+   * A stable per-session value mixed into the on-chain sessionHash (beat 8) so it
+   * is unique per session yet identical across retries/reloads within it — which
+   * keeps the hasRecorded pre-check meaningful and recording idempotent. Set once
+   * on the recovery screen; a fresh flow (new session) gets a fresh nonce.
+   */
+  sessionNonce?: string;
 }
 
 const KEY = "gct.flow";

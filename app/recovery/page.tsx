@@ -11,7 +11,7 @@ import { Web3Provider } from "@/components/onchain/Web3Provider";
 import { RecoveryCard } from "@/components/recovery/RecoveryCard";
 import { ATTENDING_CLINICIAN } from "@/lib/assessment";
 import { WELLBEING_UNIT_DEFINITION } from "@/lib/config";
-import { getFlow } from "@/lib/flow";
+import { type FlowState, getFlow, patchFlow } from "@/lib/flow";
 import { ensurePatientLabel } from "@/lib/patient";
 import {
   buildShareIntentUrl,
@@ -47,6 +47,8 @@ const DOWNLOAD_FILENAME = "green-candle-therapy-discharge.png";
 export default function RecoveryPage() {
   const router = useRouter();
   const [data, setData] = useState<RecoveryData | null>(null);
+  const [flow, setFlow] = useState<FlowState | null>(null);
+  const [nonce, setNonce] = useState("");
   const [patientLabel, setPatientLabel] = useState("");
   const [treatmentDate, setTreatmentDate] = useState("");
   const [copied, setCopied] = useState(false);
@@ -57,13 +59,17 @@ export default function RecoveryPage() {
   // session can't be discharged — route back to the step that's missing.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      const flow = getFlow();
-      const derived = deriveRecovery(flow);
+      let f = getFlow();
+      const derived = deriveRecovery(f);
       if (!derived) {
         // No named asset but a completed assessment → intake; otherwise start over.
-        router.replace(flow.market && flow.answers ? "/intake" : "/assessment");
+        router.replace(f.market && f.answers ? "/intake" : "/assessment");
         return;
       }
+      // Mint a stable per-session nonce (once) for the on-chain sessionHash.
+      if (!f.sessionNonce) f = patchFlow({ sessionNonce: String(Date.now()) });
+      setFlow(f);
+      setNonce(f.sessionNonce ?? "");
       setData(derived);
       // Patient identity is separate from the flow — read (or mint) it from the
       // localStorage-only patient record. Never derived from the asset.
@@ -292,9 +298,11 @@ export default function RecoveryPage() {
         {/* On-chain seam (beat 8) — wallet connect + live counter read, in Monad
             purple. Provider is scoped here so wallet code never loads on the
             emotional beats. Stage 1: connect + read only; the write is Stage 2. */}
-        <Web3Provider>
-          <OnChainRecord />
-        </Web3Provider>
+        {flow && nonce && (
+          <Web3Provider>
+            <OnChainRecord flow={flow} nonce={nonce} />
+          </Web3Provider>
+        )}
       </div>
     </BeatShell>
   );

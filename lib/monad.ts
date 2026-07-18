@@ -16,7 +16,12 @@ export const monadMainnet = defineChain({
   },
 });
 
-/** Minimal ABI — only what the landing counter needs. */
+/**
+ * RecoveryLog ABI — the exact interface of the verified deployed contract
+ * (contracts/src/RecoveryLog.sol). Includes the counter read, the write path
+ * (recordRecovery + the hasRecorded pre-check), the RecoveryRecorded event (for
+ * the recoveryId), and the four custom errors so viem can decode reverts.
+ */
 export const recoveryLogAbi = [
   {
     type: "function",
@@ -25,7 +30,69 @@ export const recoveryLogAbi = [
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "hasRecorded",
+    stateMutability: "view",
+    inputs: [{ name: "sessionHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "recordRecovery",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "sessionHash", type: "bytes32" },
+      { name: "assetHash", type: "bytes32" },
+      { name: "diagnosisCode", type: "uint8" },
+      { name: "recoveryLevel", type: "uint8" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "event",
+    name: "RecoveryRecorded",
+    inputs: [
+      { name: "account", type: "address", indexed: true },
+      { name: "recoveryId", type: "uint256", indexed: true },
+      { name: "sessionHash", type: "bytes32", indexed: true },
+      { name: "assetHash", type: "bytes32", indexed: false },
+      { name: "diagnosisCode", type: "uint8", indexed: false },
+      { name: "recoveryLevel", type: "uint8", indexed: false },
+      { name: "timestamp", type: "uint256", indexed: false },
+    ],
+    anonymous: false,
+  },
+  { type: "error", name: "EmptySessionHash", inputs: [] },
+  {
+    type: "error",
+    name: "SessionAlreadyRecorded",
+    inputs: [{ name: "sessionHash", type: "bytes32" }],
+  },
+  {
+    type: "error",
+    name: "InvalidDiagnosisCode",
+    inputs: [{ name: "diagnosisCode", type: "uint8" }],
+  },
+  {
+    type: "error",
+    name: "InvalidRecoveryLevel",
+    inputs: [{ name: "recoveryLevel", type: "uint8" }],
+  },
 ] as const;
+
+/** The RecoveryLog block-explorer base (Monad mainnet, verified monadscan.com). */
+export const MONAD_EXPLORER_URL = monadMainnet.blockExplorers.default.url;
+
+/** MonadScan link for a transaction hash. */
+export function txExplorerUrl(hash: string): string {
+  return `${MONAD_EXPLORER_URL}/tx/${hash}`;
+}
+
+/** MonadScan link for an address (contract or account). */
+export function addressExplorerUrl(address: string): string {
+  return `${MONAD_EXPLORER_URL}/address/${address}`;
+}
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 

@@ -71,7 +71,14 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider initialChain={monadMainnet} theme={monadTheme}>
+        {/* locale="en-US" is FORCED: RainbowKit otherwise auto-detects the
+            browser locale, which would render the connect UI in (e.g.) French and
+            leak the visitor's locale. English for everyone, regardless of browser. */}
+        <RainbowKitProvider
+          initialChain={monadMainnet}
+          theme={monadTheme}
+          locale="en-US"
+        >
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
