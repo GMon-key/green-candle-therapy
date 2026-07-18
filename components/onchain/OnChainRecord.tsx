@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseEventLogs } from "viem";
 import {
   useAccount,
@@ -12,7 +12,7 @@ import {
   useWriteContract,
 } from "wagmi";
 
-import type { FlowState } from "@/lib/flow";
+import { type FlowState, patchFlow } from "@/lib/flow";
 import {
   addressExplorerUrl,
   monadMainnet,
@@ -79,9 +79,18 @@ function ExplorerLink({ href, children }: { href: string; children: string }) {
 export function OnChainRecord({
   flow,
   nonce,
+  onResolve,
 }: {
   flow: FlowState;
   nonce: string;
+  /**
+   * Fired ONCE when the on-chain step is resolved and the ending can be offered
+   * — whether the recovery was recorded (confirmed / already on-chain) or the
+   * patient proceeded without a record (skipped, or a tx that failed and was
+   * acknowledged). The recorded flag + recovery id are persisted to the flow
+   * here; RELAPSE reads them back to branch its ending.
+   */
+  onResolve?: () => void;
 }) {
   const { address, isConnected } = useAccount();
   const walletChainId = useChainId();
@@ -180,6 +189,44 @@ export function OnChainRecord({
   useEffect(() => {
     if (isConfirmed) void refetchTotal();
   }, [isConfirmed, refetchTotal]);
+
+  // —— Resolution → the ending. When the on-chain step reaches a terminal state,
+  //    persist the branch flag (+ id) for RELAPSE and signal the parent ONCE so
+  //    the "Compare with reality?" gate can appear. Kept in a ref so a parent
+  //    re-render never re-fires it, and re-persisted if the recovery id lands a
+  //    frame after `confirmed`.
+  const [skipped, setSkipped] = useState(false);
+  const resolvedRef = useRef(false);
+  const lastIdRef = useRef<string | undefined>(undefined);
+  const onResolveRef = useRef(onResolve);
+  useEffect(() => {
+    onResolveRef.current = onResolve;
+  }, [onResolve]);
+
+  useEffect(() => {
+    if (status !== "confirmed" && status !== "already") return;
+    const id = status === "confirmed" ? recoveryId?.toString() : undefined;
+    if (!resolvedRef.current) {
+      resolvedRef.current = true;
+      lastIdRef.current = id;
+      patchFlow({ recordedOnChain: true, ...(id ? { recoveryId: id } : {}) });
+      onResolveRef.current?.();
+    } else if (id && id !== lastIdRef.current) {
+      lastIdRef.current = id;
+      patchFlow({ recoveryId: id });
+    }
+  }, [status, recoveryId]);
+
+  // The patient proceeds WITHOUT a permanent record — a deliberate skip, or an
+  // acknowledged tx failure. Both continue to RELAPSE with recordedOnChain=false.
+  function proceedWithout() {
+    patchFlow({ recordedOnChain: false });
+    setSkipped(true);
+    if (!resolvedRef.current) {
+      resolvedRef.current = true;
+      onResolveRef.current?.();
+    }
+  }
 
   async function handleRecord() {
     if (!address || !CONTRACT_ADDRESS) return;
@@ -287,7 +334,14 @@ export function OnChainRecord({
 
         {/* The action / lifecycle block. */}
         <div className="mt-6 border-t border-monad/20 pt-6">
-          {status === "idle" && (
+          {/* Proceeded without a permanent record (skip or acknowledged failure). */}
+          {skipped && (
+            <p className="text-sm leading-relaxed text-clinic-muted">
+              Proceeding without a permanent record.
+            </p>
+          )}
+
+          {!skipped && status === "idle" && (
             <div className="flex flex-col gap-4">
               <p className="text-sm font-medium leading-relaxed text-clinic-fg">
                 Your recovery was visual. This makes it permanent.
@@ -323,12 +377,21 @@ export function OnChainRecord({
                   ? "It costs only gas — no fee, no value transferred."
                   : "Connect a wallet to record. It costs only gas."}
               </p>
+              {/* Encouraged but never forced — a low-key way past for a judge
+                  without MON. Deliberately small: possible, not inviting. */}
+              <button
+                type="button"
+                onClick={proceedWithout}
+                className="self-start text-xs font-medium text-clinic-muted underline underline-offset-2 transition-colors hover:text-clinic-fg"
+              >
+                Continue without recording
+              </button>
             </div>
           )}
 
-          {status === "signing" && <Pulse label="Awaiting signature…" />}
+          {!skipped && status === "signing" && <Pulse label="Awaiting signature…" />}
 
-          {status === "pending" && (
+          {!skipped && status === "pending" && (
             <div className="flex flex-col gap-3">
               <Pulse label="Recording on Monad…" />
               {txHash && (
@@ -339,7 +402,7 @@ export function OnChainRecord({
             </div>
           )}
 
-          {status === "confirmed" && (
+          {!skipped && status === "confirmed" && (
             <div className="flex flex-col gap-2">
               <p className="text-lg font-semibold text-clinic-fg">
                 Recovery permanently recorded.
@@ -360,7 +423,7 @@ export function OnChainRecord({
             </div>
           )}
 
-          {status === "already" && (
+          {!skipped && status === "already" && (
             <div className="flex flex-col gap-2">
               <p className="text-base font-semibold text-clinic-fg">
                 This recovery is already on-chain.
@@ -376,28 +439,43 @@ export function OnChainRecord({
             </div>
           )}
 
-          {status === "error" && error && (
+          {!skipped && status === "error" && error && (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-clinic-alert">
                 {error.message}
               </p>
-              {error.kind === "chain" ? (
+              {/* Honest, deadpan — the record is optional, so a failure is not a
+                  wall. The patient can retry or proceed without a record. */}
+              <p className="text-sm leading-relaxed text-clinic-muted">
+                Recovery could not be recorded on-chain. Proceeding without a
+                permanent record.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {error.kind === "chain" ? (
+                  <button
+                    type="button"
+                    onClick={() => switchChain({ chainId: monadMainnet.id })}
+                    className={PRIMARY_BTN}
+                  >
+                    Switch to Monad
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={retry}
+                    className="text-sm font-medium text-monad underline underline-offset-2 hover:text-monad-strong"
+                  >
+                    Try again
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => switchChain({ chainId: monadMainnet.id })}
-                  className={PRIMARY_BTN}
+                  onClick={proceedWithout}
+                  className="text-sm font-medium text-clinic-muted underline underline-offset-2 transition-colors hover:text-clinic-fg"
                 >
-                  Switch to Monad
+                  Continue without recording →
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={retry}
-                  className="self-start text-sm font-medium text-monad underline underline-offset-2 hover:text-monad-strong"
-                >
-                  Try again
-                </button>
-              )}
+              </div>
             </div>
           )}
         </div>

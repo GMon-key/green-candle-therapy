@@ -38,6 +38,20 @@ export interface FlowState {
    * on the recovery screen; a fresh flow (new session) gets a fresh nonce.
    */
   sessionNonce?: string;
+  /**
+   * RELAPSE (the ending) branches on this. True once a recovery was successfully
+   * written on-chain (or found already recorded); false when the patient skipped
+   * or the tx failed and they proceeded without a permanent record. Undefined
+   * until the on-chain step is resolved on the recovery screen.
+   */
+  recordedOnChain?: boolean;
+  /**
+   * The recovery id from the confirmed on-chain receipt, if one was captured.
+   * Shown in RELAPSE's recorded ending ("Recovery #{id}…"). May be absent even
+   * when recordedOnChain is true (e.g. an already-recorded session, where no
+   * receipt is available) — the ending copy degrades gracefully.
+   */
+  recoveryId?: string;
 }
 
 const KEY = "gct.flow";

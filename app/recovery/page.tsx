@@ -9,6 +9,7 @@ import { TypeLine } from "@/components/motion/TypeLine";
 import { OnChainRecord } from "@/components/onchain/OnChainRecord";
 import { Web3Provider } from "@/components/onchain/Web3Provider";
 import { RecoveryCard } from "@/components/recovery/RecoveryCard";
+import { RelapseGate } from "@/components/recovery/RelapseGate";
 import { ATTENDING_CLINICIAN } from "@/lib/assessment";
 import { WELLBEING_UNIT_DEFINITION } from "@/lib/config";
 import { type FlowState, getFlow, patchFlow } from "@/lib/flow";
@@ -52,6 +53,10 @@ export default function RecoveryPage() {
   const [patientLabel, setPatientLabel] = useState("");
   const [treatmentDate, setTreatmentDate] = useState("");
   const [copied, setCopied] = useState(false);
+  // Opens once the on-chain step is resolved (recorded / skipped / failed),
+  // revealing the reluctant two-step into the ending. Resolves the former
+  // on-chain dead-end: every path now leads somewhere with an exit.
+  const [gateOpen, setGateOpen] = useState(false);
   const cardCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Read persisted flow after mount (sessionStorage is client-only; defer a
@@ -300,9 +305,17 @@ export default function RecoveryPage() {
             emotional beats. Stage 1: connect + read only; the write is Stage 2. */}
         {flow && nonce && (
           <Web3Provider>
-            <OnChainRecord flow={flow} nonce={nonce} />
+            <OnChainRecord
+              flow={flow}
+              nonce={nonce}
+              onResolve={() => setGateOpen(true)}
+            />
           </Web3Provider>
         )}
+
+        {/* The reluctant two-step into the ending — appears once the on-chain
+            step resolves. Both of its branches carry an exit (no dead-ends). */}
+        {gateOpen && <RelapseGate />}
       </div>
     </BeatShell>
   );
