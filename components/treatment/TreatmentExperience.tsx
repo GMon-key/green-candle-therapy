@@ -3,6 +3,7 @@
 import * as Tone from "tone";
 import { useEffect, useRef, useState } from "react";
 
+import { useClinicMuted } from "@/components/audio/useClinicMuted";
 import type { Candle } from "@/lib/diagnosis";
 
 /**
@@ -446,15 +447,24 @@ export function TreatmentExperience({
   const captionRef = useRef<HTMLParagraphElement>(null);
   const bpmRef = useRef<HTMLSpanElement>(null);
 
-  const [muted, setMuted] = useState(false);
+  // Unified mute — the SAME flag the global toggle + typing/measuring layer use.
+  // No separate treatment control; the app-wide toggle governs the heartbeat.
+  const [muted] = useClinicMuted();
   const [done, setDone] = useState(false);
   const muteRef = useRef(false);
+  const audioRef = useRef<TreatmentAudio | null>(null);
 
   const denialNorm = clamp(denial, 0, 100) / 100;
   const magnitude = lerp(DENIAL_MAGNITUDE_MIN, DENIAL_MAGNITUDE_MAX, denialNorm) * DENIAL_SCALING;
 
   useEffect(() => {
     muteRef.current = muted;
+    // Apply live so the global toggle mutes/unmutes the running heartbeat too.
+    try {
+      audioRef.current?.setMute(muted);
+    } catch {
+      /* no-op */
+    }
   }, [muted]);
 
   // Fallback for the discharge CTA: `done` is normally flipped inside the rAF
@@ -533,6 +543,7 @@ export function TreatmentExperience({
     let ecg: number[] = [];
 
     const audio = new TreatmentAudio();
+    audioRef.current = audio;
     if (!reduce) void audio.init().then((ok) => ok && audio.setMute(muteRef.current));
     const unlock = () => {
       if (!reduce) void audio.init().then((ok) => ok && audio.setMute(muteRef.current));
@@ -1027,6 +1038,7 @@ export function TreatmentExperience({
         window.removeEventListener("resize", resize);
         window.removeEventListener("resize", renderCalmEndState);
         window.removeEventListener("pointerdown", unlock);
+        audioRef.current = null;
         audio.dispose();
       };
     }
@@ -1037,6 +1049,7 @@ export function TreatmentExperience({
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointerdown", unlock);
+      audioRef.current = null;
       audio.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1061,14 +1074,7 @@ export function TreatmentExperience({
         </span>
       </div>
 
-      {/* Mute control (first tap also unlocks audio if autoplay was blocked). */}
-      <button
-        type="button"
-        onClick={() => setMuted((m) => !m)}
-        className="absolute bottom-5 right-5 z-10 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-[#e6f1ea] backdrop-blur transition-colors hover:border-white/30"
-      >
-        {muted ? "Sound off" : "Sound on"}
-      </button>
+      {/* Mute lives in the app-wide AudioController (bottom-right, unified). */}
 
       {/* Deadpan clinical caption. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-6">

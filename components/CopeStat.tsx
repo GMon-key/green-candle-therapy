@@ -1,5 +1,6 @@
 "use client";
 
+import { playMeasure } from "@/lib/clinicAudio";
 import { WELLBEING_UNIT } from "@/lib/config";
 import { useCountUp } from "@/lib/useCountUp";
 
@@ -34,7 +35,8 @@ export function CopeStat({
   showUnit?: boolean;
 }) {
   const target = Math.max(0, Math.min(value, CU_SCALE_MAX));
-  const shown = useCountUp(target);
+  // A warm confirmation tone as the gauge locks in — the "measuring" moment.
+  const shown = useCountUp(target, 800, playMeasure);
   const fillPct = (shown / CU_SCALE_MAX) * 100;
 
   return (

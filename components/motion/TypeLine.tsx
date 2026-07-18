@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react";
 
+import { playBlip } from "@/lib/clinicAudio";
+
 /**
  * Types `text` in character-by-character with a blinking caret — a clinical
  * readout that ARRIVES rather than just exists. Under prefers-reduced-motion the
  * full line is present instantly with no caret. The full text is always exposed
  * to assistive tech via aria-label; the animated portion is aria-hidden.
+ *
+ * This is the ONE place the app's typing sound lives: each visible character
+ * fires a soft clinical blip through the shared audio engine (which throttles,
+ * pitch-jitters, and stays silent until unmuted / after the first gesture). Wiring
+ * it here means every reveal in every beat is covered from a single spot.
  */
 export function TypeLine({
   text,
@@ -45,6 +52,10 @@ export function TypeLine({
       const step = () => {
         i += 1;
         setShown(i);
+        // Blip on the character just revealed — skip pure whitespace so gaps
+        // between words read as small silences (the engine throttles the rest).
+        const ch = text[i - 1];
+        if (ch && ch.trim() !== "") playBlip();
         if (i < text.length) {
           stepTimer = window.setTimeout(step, speed);
         } else {

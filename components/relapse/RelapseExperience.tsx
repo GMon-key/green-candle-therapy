@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { setAudioSuppressed } from "@/lib/clinicAudio";
 import type { Candle } from "@/lib/diagnosis";
 
 /**
@@ -135,6 +136,15 @@ export function RelapseExperience({
   }, [onSettled]);
 
   const [, setSettled] = useState(false);
+
+  // RELAPSE SILENCE CUT. As reality returns, the app goes quiet: suppress the
+  // typing blip + measuring tone for the whole reveal and the deadpan close, so
+  // the ending lands in silence. Released when leaving (back to a fresh session).
+  // (Audio proper is banked; this seam is the silence.)
+  useEffect(() => {
+    setAudioSuppressed(true);
+    return () => setAudioSuppressed(false);
+  }, []);
 
   const magnitude =
     lerp(DENIAL_MAGNITUDE_MIN, DENIAL_MAGNITUDE_MAX, clamp(denial, 0, 100) / 100);
@@ -309,8 +319,9 @@ export function RelapseExperience({
     }
 
     // —— Animated revert ——————————————————————————————————————————————————————
-    // AUDIO SEAM (banked): the RELAPSE silence cut / relapse sting mounts here in
-    // the later audio pass — a hard cut to silence as the green begins to peel.
+    // AUDIO: the silence cut is wired at mount (setAudioSuppressed above) — the
+    // typing/measuring layer goes quiet for the whole reveal + close. A relapse
+    // STING (a one-shot sound as the green peels) is still banked for later.
     let raf = 0;
     let startMs = 0;
     let settledFired = false;

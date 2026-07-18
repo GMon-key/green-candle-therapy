@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
+import { AudioController } from "@/components/audio/AudioController";
+
 const plexSans = IBM_Plex_Sans({
   variable: "--font-ibm-sans",
   subsets: ["latin"],
@@ -52,6 +54,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-paper text-ink">
         {children}
+        {/* App-wide synthesized audio: arms first-gesture start + the persistent
+            unified mute toggle (governs typing blips, the measuring tone, and the
+            beat-6 heartbeat). */}
+        <AudioController />
       </body>
     </html>
   );
